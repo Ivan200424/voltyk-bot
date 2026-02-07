@@ -61,14 +61,8 @@ export async function initRedis() {
     await redisClient.connect();
     return true;
   } catch (error) {
-    retryCount++;
-    if (retryCount >= MAX_RETRIES) {
-      console.log(`⚠️  Redis connection failed after ${MAX_RETRIES} attempts`);
-      console.log('⚠️  Redis unavailable, using in-memory storage');
-      fallbackToMemory = true;
-    } else {
-      console.error('❌ Failed to connect to Redis:', error.message);
-    }
+    // Initial connection failed - let reconnectStrategy handle retries
+    console.error('❌ Failed to connect to Redis:', error.message);
     redisClient = null;
     isConnected = false;
     return false;

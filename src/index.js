@@ -116,8 +116,11 @@ async function gracefulShutdown(signal) {
   
   // Stop accepting new requests
   if (httpServer) {
-    httpServer.close(() => {
-      console.log('✅ HTTP server closed');
+    await new Promise((resolve) => {
+      httpServer.close(() => {
+        console.log('✅ HTTP server closed');
+        resolve();
+      });
     });
   }
   
