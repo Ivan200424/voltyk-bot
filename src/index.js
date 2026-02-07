@@ -129,8 +129,12 @@ async function gracefulShutdown(signal) {
   }
   
   // Stop bot
-  await bot.stop();
-  console.log('✅ Bot stopped');
+  try {
+    await bot.stop();
+    console.log('✅ Bot stopped');
+  } catch (error) {
+    console.error('⚠️  Error stopping bot:', error.message);
+  }
   
   // Close storage connections
   await closeStorage();
