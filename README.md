@@ -2,6 +2,13 @@
 
 Telegram бот для відстежування графіків відключень електроенергії в Україні.
 
+## 📚 Documentation
+
+- **[🚀 Deployment Guide](DEPLOYMENT.md)** - How to deploy to Railway
+- **[🧪 Testing Guide](TESTING.md)** - How to test all features
+- **[🏗️ Architecture](ARCHITECTURE.md)** - System architecture and data flow
+- **[🤝 Contributing](CONTRIBUTING.md)** - Contribution guidelines
+
 ## 🚀 Швидкий старт
 
 ### Встановлення
