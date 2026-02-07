@@ -133,7 +133,7 @@ async function gracefulShutdown(signal) {
     await bot.stop();
     console.log('✅ Bot stopped');
   } catch (error) {
-    console.error('⚠️  Error stopping bot:', error.message);
+    console.error('⚠️  Error stopping bot (shutdown will continue):', error.message);
   }
   
   // Close storage connections
