@@ -1,4 +1,4 @@
-import { initRedis, getRedis, setRedis, delRedis, isRedisAvailable } from './redis.js';
+import { initRedis, getRedis, setRedis, delRedis, isRedisAvailable, closeRedis } from './redis.js';
 import { getMemory, setMemory, delMemory } from './memory.js';
 
 let initialized = false;
@@ -73,4 +73,8 @@ export async function setWizardState(userId, state) {
 
 export async function delWizardState(userId) {
   return await del(`wizard:${userId}`);
+}
+
+export async function closeStorage() {
+  await closeRedis();
 }
