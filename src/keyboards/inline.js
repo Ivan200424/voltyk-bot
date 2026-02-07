@@ -1,0 +1,89 @@
+import { InlineKeyboard } from 'grammy';
+import { config } from '../config.js';
+
+// Wizard Step 1: Region selection
+export function regionKeyboard() {
+  const keyboard = new InlineKeyboard();
+  config.regions.forEach((region) => {
+    keyboard.text(region, `region:${region}`).row();
+  });
+  return keyboard;
+}
+
+// Wizard Step 2: Queue selection
+export function queueKeyboard() {
+  const keyboard = new InlineKeyboard();
+  const queues = config.queues;
+  
+  // Display in 3x3 grid
+  for (let i = 0; i < queues.length; i += 3) {
+    queues.slice(i, i + 3).forEach((queue) => {
+      keyboard.text(queue, `queue:${queue}`);
+    });
+    keyboard.row();
+  }
+  
+  return keyboard;
+}
+
+// Wizard Step 3: Notification destination
+export function notifyToKeyboard() {
+  return new InlineKeyboard()
+    .text('📱 У бота', 'notify_to:bot').row()
+    .text('📺 У власний канал', 'notify_to:channel');
+}
+
+// Wizard Step 4: IP monitoring (optional)
+export function ipMonitoringKeyboard() {
+  return new InlineKeyboard()
+    .text('➕ Додати адресу', 'ip:add').row()
+    .text('⏭ Пропустити', 'ip:skip');
+}
+
+// Main menu keyboard
+export function mainMenuKeyboard() {
+  return new InlineKeyboard()
+    .text('📋 Подивитись графік', 'schedule').row()
+    .text('📡 Моніторинг', 'monitoring').row()
+    .text('📺 Канал', 'channel').row()
+    .text('⚙️ Налаштування', 'settings').row()
+    .text('❓ Допомога', 'help');
+}
+
+// Settings keyboard
+export function settingsKeyboard() {
+  return new InlineKeyboard()
+    .text('📍 Змінити регіон', 'change_region').row()
+    .text('🔢 Змінити чергу', 'change_queue').row()
+    .text('🔔 Сповіщення', 'toggle_notifications').row()
+    .text('← Назад', 'back')
+    .text('⤴ Меню', 'menu');
+}
+
+// Help keyboard
+export function helpKeyboard() {
+  return new InlineKeyboard()
+    .url('💬 Обговорення / Підтримка', config.supportChatUrl).row()
+    .text('← Назад', 'back')
+    .text('⤴ Меню', 'menu');
+}
+
+// Fallback keyboard
+export function fallbackKeyboard() {
+  return new InlineKeyboard()
+    .text('⤴ Меню', 'menu')
+    .text('❓ Допомога', 'help');
+}
+
+// Navigation back keyboard
+export function backMenuKeyboard() {
+  return new InlineKeyboard()
+    .text('← Назад', 'back')
+    .text('⤴ Меню', 'menu');
+}
+
+// Just menu keyboard
+export function menuKeyboard() {
+  return new InlineKeyboard()
+    .text('⤴ Меню', 'menu');
+}

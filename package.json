@@ -1,0 +1,27 @@
+{
+  "name": "voltyk-bot",
+  "version": "1.0.0",
+  "description": "Telegram bot for electricity outage schedules in Ukraine",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "ukraine",
+    "electricity"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "grammy": "^1.21.1",
+    "redis": "^4.6.13",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
