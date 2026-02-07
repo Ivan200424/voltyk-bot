@@ -58,7 +58,7 @@ export async function initRedis() {
     await redisClient.connect();
     return true;
   } catch (error) {
-    // Initial connection failed - let reconnectStrategy handle retries
+    // Initial connection failed - will use in-memory storage
     console.error('❌ Failed to connect to Redis:', error.message);
     redisClient = null;
     isConnected = false;
