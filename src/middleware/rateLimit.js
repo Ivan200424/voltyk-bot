@@ -11,7 +11,7 @@ export function rateLimitMiddleware(ctx, next) {
   }
   
   const now = Date.now();
-  const userKey = `${userId}`;
+  const userKey = userId;
   
   if (!userActions.has(userKey)) {
     userActions.set(userKey, []);

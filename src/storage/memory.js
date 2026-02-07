@@ -6,7 +6,7 @@ export function getMemory(key) {
   if (!item) return null;
   
   // Check TTL
-  if (item.expiresAt && Date.now() > item.expiresAt) {
+  if (item.expiresAt && Date.now() >= item.expiresAt) {
     storage.delete(key);
     return null;
   }

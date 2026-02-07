@@ -92,8 +92,14 @@ bot.callbackQuery('help', handleHelp);
 // Unknown callback query handler (fallback)
 bot.on('callback_query:data', handleUnknownCallback);
 
-// Fallback for all other messages
-bot.on('message', handleFallbackMessage);
+// Fallback for all other text messages (non-command messages)
+bot.on('message:text', handleFallbackMessage);
+
+// Fallback for other message types (media, stickers, etc.)
+bot.on('message', (ctx) => {
+  // Silently ignore non-text messages
+  console.log('Received non-text message, ignoring');
+});
 
 // Error handler
 bot.catch((err) => {

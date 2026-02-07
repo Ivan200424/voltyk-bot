@@ -4,8 +4,8 @@ import bot from './bot.js';
 import { config } from './config.js';
 import { initStorage } from './storage/index.js';
 
-// Track processed update IDs to prevent duplicate processing
-const processedUpdates = new Set();
+// Track processed update IDs to prevent duplicate processing (LRU-style)
+const processedUpdates = new Map();
 const MAX_PROCESSED_UPDATES = 1000;
 
 async function main() {
@@ -55,13 +55,13 @@ async function main() {
               return;
             }
             
-            // Add to processed set
-            processedUpdates.add(update.update_id);
+            // Add to processed map (Map maintains insertion order)
+            processedUpdates.set(update.update_id, Date.now());
             
-            // Limit set size
+            // Limit map size (remove oldest entries)
             if (processedUpdates.size > MAX_PROCESSED_UPDATES) {
-              const firstItem = processedUpdates.values().next().value;
-              processedUpdates.delete(firstItem);
+              const firstKey = processedUpdates.keys().next().value;
+              processedUpdates.delete(firstKey);
             }
             
             // Create a mock request/response for grammY
