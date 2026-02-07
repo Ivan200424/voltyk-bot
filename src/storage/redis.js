@@ -3,7 +3,6 @@ import { config } from '../config.js';
 
 let redisClient = null;
 let isConnected = false;
-let retryCount = 0;
 const MAX_RETRIES = 3;
 let fallbackToMemory = false;
 
@@ -23,7 +22,6 @@ export async function initRedis() {
       url: config.redisUrl,
       socket: {
         reconnectStrategy: (retries) => {
-          retryCount = retries;
           // Stop retrying after MAX_RETRIES attempts
           if (retries >= MAX_RETRIES) {
             console.log(`⚠️  Redis connection failed after ${MAX_RETRIES} attempts`);
@@ -48,7 +46,6 @@ export async function initRedis() {
     redisClient.on('connect', () => {
       console.log('✅ Redis connected');
       isConnected = true;
-      retryCount = 0;
     });
 
     redisClient.on('end', () => {
