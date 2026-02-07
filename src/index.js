@@ -2,11 +2,14 @@ import { webhookCallback } from 'grammy';
 import { createServer } from 'http';
 import bot from './bot.js';
 import { config } from './config.js';
-import { initStorage } from './storage/index.js';
+import { initStorage, closeStorage } from './storage/index.js';
 
 // Track processed update IDs to prevent duplicate processing (LRU-style)
 const processedUpdates = new Map();
 const MAX_PROCESSED_UPDATES = 1000;
+
+// Track server for graceful shutdown
+let httpServer = null;
 
 async function main() {
   console.log('🚀 Starting Voltyk Bot...');
@@ -20,7 +23,9 @@ async function main() {
   
   // Setup webhook
   if (config.webhookDomain) {
-    const webhookUrl = `${config.webhookDomain}/webhook`;
+    // Remove trailing slash from domain to prevent double slashes
+    const domain = config.webhookDomain.replace(/\/+$/, '');
+    const webhookUrl = `${domain}/webhook`;
     await bot.api.setWebhook(webhookUrl);
     console.log(`✅ Webhook set to: ${webhookUrl}`);
     
@@ -96,7 +101,7 @@ async function main() {
     });
     
     const port = config.port;
-    server.listen(port, () => {
+    httpServer = server.listen(port, () => {
       console.log(`✅ Server listening on port ${port}`);
     });
   } else {
@@ -106,17 +111,29 @@ async function main() {
 }
 
 // Handle graceful shutdown
-process.once('SIGINT', () => {
-  console.log('\n👋 Shutting down gracefully...');
-  bot.stop();
+async function gracefulShutdown(signal) {
+  console.log(`\n👋 Received ${signal}, shutting down gracefully...`);
+  
+  // Stop accepting new requests
+  if (httpServer) {
+    httpServer.close(() => {
+      console.log('✅ HTTP server closed');
+    });
+  }
+  
+  // Stop bot
+  await bot.stop();
+  console.log('✅ Bot stopped');
+  
+  // Close storage connections
+  await closeStorage();
+  
+  console.log('✅ Shutdown complete');
   process.exit(0);
-});
+}
 
-process.once('SIGTERM', () => {
-  console.log('\n👋 Shutting down gracefully...');
-  bot.stop();
-  process.exit(0);
-});
+process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 // Start the bot
 main().catch((error) => {
