@@ -18,6 +18,14 @@ export const config = {
     'Дніпропетровщина'
   ],
   
+  // Region slugs mapping for outage-data-ua repository
+  regionSlugs: {
+    'Київ': 'kyiv',
+    'Київщина': 'kyiv-region',
+    'Одещина': 'odesa',
+    'Дніпропетровщина': 'dnipro',
+  },
+  
   // Queues
   queues: ['1.1', '1.2', '2.1', '2.2', '3.1', '3.2', '4.1', '4.2', '5.1', '5.2', '6.1', '6.2'],
   

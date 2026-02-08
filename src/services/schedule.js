@@ -1,13 +1,12 @@
 import crypto from 'crypto';
 import { get, set } from '../storage/index.js';
-
-// Mock data structure for outage-data-ua repo
-// In production, this would fetch from https://github.com/Baskerville42/outage-data-ua
-// For now, we'll use mock data to implement the full logic
+import { config } from '../config.js';
 
 const DAYS_OF_WEEK = [
   'Неділя', 'Понеділок', 'Вівторок', 'Середа', 'Четвер', 'П\'ятниця', 'Субота'
 ];
+
+const CACHE_TTL = 60; // Cache TTL in seconds
 
 /**
  * Generate hash from schedule content
@@ -63,37 +62,128 @@ function calculateTotalHours(intervals) {
 }
 
 /**
+ * Convert hour status values to time intervals
+ * Status values: "yes" (outage), "first" (partial), "second" (partial), "no" (power)
+ */
+function parseIntervalsFromHourlyData(hourlyData) {
+  const intervals = [];
+  let currentStart = null;
+  
+  for (let hour = 1; hour <= 24; hour++) {
+    const status = hourlyData[String(hour)];
+    const hasOutage = status === 'yes' || status === 'first' || status === 'second';
+    
+    if (hasOutage && currentStart === null) {
+      // Start of an outage interval
+      currentStart = hour - 1; // Hour 1 means 00:00-01:00, so start is 0
+    } else if (!hasOutage && currentStart !== null) {
+      // End of an outage interval
+      const startTime = String(currentStart).padStart(2, '0') + ':00';
+      const endTime = String(hour - 1).padStart(2, '0') + ':00';
+      intervals.push(`${startTime} - ${endTime}`);
+      currentStart = null;
+    }
+  }
+  
+  // Handle case where outage extends to end of day
+  if (currentStart !== null) {
+    const startTime = String(currentStart).padStart(2, '0') + ':00';
+    // If starts at 00:00, it's the whole day
+    if (currentStart === 0) {
+      intervals.push('00:00 - 24:00');
+    } else {
+      intervals.push(`${startTime} - 24:00`);
+    }
+  }
+  
+  return intervals;
+}
+
+/**
+ * Get date timestamp for schedule data lookup
+ * The outage-data-ua repo stores dates at 22:00 UTC (which is midnight Kyiv time)
+ * Note: Ukraine is permanently UTC+2 (no DST since 2011)
+ */
+function getDateTimestamp(date) {
+  const year = date.getFullYear();
+  const month = date.getMonth();
+  const day = date.getDate();
+  // Get timestamp for 22:00 UTC (midnight Kyiv time) of the date
+  const utcMidnight = Date.UTC(year, month, day, 0, 0, 0, 0);
+  const kyivMidnight = utcMidnight - (2 * 60 * 60 * 1000); // Subtract 2 hours
+  return Math.floor(kyivMidnight / 1000);
+}
+
+/**
  * Fetch schedule data from outage-data-ua repository
- * 
- * TODO: Replace with actual fetch from https://github.com/Baskerville42/outage-data-ua
- * 
- * Implementation steps:
- * 1. Use GitHub raw URL or API to fetch JSON files
- *    Example: https://raw.githubusercontent.com/Baskerville42/outage-data-ua/main/data/{region}/{queue}/{date}.json
- * 2. Parse JSON to extract time intervals for the queue
- * 3. Fetch corresponding image URL for the schedule
- *    Example: https://raw.githubusercontent.com/Baskerville42/outage-data-ua/main/images/{region}/{date}.png
- * 4. Return structured data with intervals and imageUrl
- * 5. Handle cases where data is not available (return null)
- * 6. Implement retry logic with exponential backoff for network failures
- * 
- * For now, return mock data structure to test the full logic
  */
 async function fetchScheduleFromRepo(region, queue, date) {
-  // Mock data - simulating JSON structure from outage-data-ua
-  const mockSchedule = {
-    region,
-    queue,
-    date: formatDate(date),
-    intervals: [
-      '00:00 - 03:00',
-      '06:30 - 13:30',
-      '17:00 - 00:00'
-    ],
-    imageUrl: 'https://via.placeholder.com/800x600.png?text=Schedule+Graph' // Placeholder
-  };
-  
-  return mockSchedule;
+  try {
+    // Resolve region slug
+    const regionSlug = config.regionSlugs[region];
+    if (!regionSlug) {
+      console.error(`No region slug found for region: ${region}`);
+      return null;
+    }
+    
+    // Check cache first
+    const cacheKey = `schedule_json:${regionSlug}`;
+    let jsonData = await get(cacheKey);
+    
+    if (!jsonData) {
+      // Fetch from GitHub
+      const url = `https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/data/${regionSlug}.json`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        console.error(`Failed to fetch schedule from ${url}: ${response.status}`);
+        return null;
+      }
+      
+      jsonData = await response.json();
+      
+      // Cache the result
+      await set(cacheKey, jsonData, CACHE_TTL);
+    }
+    
+    // Get timestamp for the requested date (22:00 UTC / midnight Kyiv time)
+    const dateTimestamp = getDateTimestamp(date);
+    const dateKey = String(dateTimestamp);
+    
+    // Extract schedule for the date
+    const dateData = jsonData?.fact?.data?.[dateKey];
+    if (!dateData) {
+      console.error(`No data found for date ${dateKey} in ${regionSlug}`);
+      return null;
+    }
+    
+    // Map queue to GPV key (e.g., "3.1" -> "GPV3.1")
+    const [group, subgroup] = queue.split('.');
+    const gpvKey = `GPV${group}.${subgroup}`;
+    
+    const hourlyData = dateData[gpvKey];
+    if (!hourlyData) {
+      console.error(`No data found for queue ${gpvKey} in ${regionSlug} on ${dateKey}`);
+      return null;
+    }
+    
+    // Parse intervals from hourly data
+    const intervals = parseIntervalsFromHourlyData(hourlyData);
+    
+    // Build image URL
+    const imageUrl = `https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/images/${regionSlug}/gpv-${group}-${subgroup}-emergency.png`;
+    
+    return {
+      region,
+      queue,
+      date: formatDate(date),
+      intervals,
+      imageUrl
+    };
+  } catch (error) {
+    console.error(`Error fetching schedule from repo:`, error);
+    return null;
+  }
 }
 
 /**
@@ -108,6 +198,11 @@ export async function getScheduleData(region, queue) {
     // Fetch schedules
     const todaySchedule = await fetchScheduleFromRepo(region, queue, today);
     const tomorrowSchedule = await fetchScheduleFromRepo(region, queue, tomorrow);
+    
+    // If today's schedule is not available, return null
+    if (!todaySchedule) {
+      return null;
+    }
     
     // Calculate hashes
     const todayHash = generateHash(todaySchedule.intervals);
