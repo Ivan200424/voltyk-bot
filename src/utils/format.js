@@ -3,17 +3,17 @@ export function formatMainMenu(userData) {
     ? `${userData.region} • ${userData.queue}`
     : 'не налаштовано';
     
-  const channelDisplay = userData.channelName
-    ? `@${userData.channelName} ✅`
+  const channelDisplay = (userData.channel_name || userData.channelName)
+    ? `@${userData.channel_name || userData.channelName} ✅`
     : 'не підключено ❌';
     
-  const ipDisplay = userData.ipAddress
+  const ipDisplay = (userData.router_ip || userData.ipAddress)
     ? 'підключена ✅'
     : 'не підключена ❌';
     
-  const notifyDisplay = userData.notificationsEnabled
-    ? 'увімкнено ✅'
-    : 'вимкнено ❌';
+  const notifyDisplay = userData.notifications_enabled !== undefined 
+    ? (userData.notifications_enabled ? 'увімкнено ✅' : 'вимкнено ❌')
+    : (userData.notificationsEnabled ? 'увімкнено ✅' : 'вимкнено ❌');
 
   return `🚧 Бот у розробці
 Деякі функції можуть працювати нестабільно.

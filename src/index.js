@@ -5,6 +5,7 @@ import { initStorage, closeStorage, getAllUserIds, getUserData, setUserData } fr
 import { initScheduleChecker, stopScheduleChecker } from './jobs/scheduleChecker.js';
 import { initChannelGuard, stopChannelGuard } from './jobs/channelGuard.js';
 import { migrateExistingChannel } from './services/channel.js';
+import { initPendingChannelsCleanup, stopPendingChannelsCleanup } from './handlers/start.js';
 
 // Track processed update IDs to prevent duplicate processing (LRU-style)
 const processedUpdates = new Map();
@@ -26,11 +27,17 @@ async function main() {
   const botInfo = bot.botInfo;
   console.log(`✅ Bot @${botInfo.username} is ready`);
   
+  // Register bot commands
+  await registerBotCommands(bot);
+  
   // Initialize schedule checker
   initScheduleChecker(bot);
   
   // Initialize channel guard
   initChannelGuard(bot);
+  
+  // Initialize pending channels cleanup
+  initPendingChannelsCleanup();
   
   // Run one-time migration for existing channels
   await migrateExistingChannels(bot);
@@ -134,6 +141,9 @@ async function gracefulShutdown(signal) {
   // Stop channel guard
   stopChannelGuard();
   
+  // Stop pending channels cleanup
+  stopPendingChannelsCleanup();
+  
   // Stop bot
   try {
     await bot.stop();
@@ -151,6 +161,28 @@ async function gracefulShutdown(signal) {
 
 process.once('SIGINT', () => gracefulShutdown('SIGINT'));
 process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+/**
+ * Register bot commands
+ */
+async function registerBotCommands(bot) {
+  try {
+    await bot.api.setMyCommands([
+      { command: 'start', description: '🚀 Запустити бота' },
+      { command: 'schedule', description: '📊 Графік відключень' },
+      { command: 'next', description: '⏱ Наступне відключення' },
+      { command: 'timer', description: '⏱ Таймер до відключення' },
+      { command: 'stats', description: '📈 Моя статистика' },
+      { command: 'settings', description: '⚙️ Налаштування' },
+      { command: 'channel', description: '📺 Керування каналом' },
+      { command: 'help', description: '❓ Допомога' },
+      { command: 'cancel', description: '🚫 Скасувати дію' },
+    ]);
+    console.log('✅ Bot commands registered');
+  } catch (error) {
+    console.error('⚠️  Failed to register bot commands:', error);
+  }
+}
 
 /**
  * Migrate existing channels (one-time on startup)
