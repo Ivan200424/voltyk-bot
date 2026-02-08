@@ -211,13 +211,19 @@ function buildMessagesForChanges(params) {
   const todayChanged = todayChange.type === 'new' || todayChange.type === 'updated';
   const tomorrowChanged = tomorrowChange.type === 'new' || tomorrowChange.type === 'updated';
   
+  // Special case: If today is "new" (first time) and tomorrow is not changed, use scenario 1
+  if (todayChange.type === 'new' && !tomorrowChanged) {
+    logger.info(`Scenario 1: First schedule for today for queue ${queue}`);
+    return [buildScenario1Message(queue, todayDate, todayEvents)];
+  }
+  
   // Scenario 4: Both changed (today updated AND tomorrow appeared/updated)
   if (todayChanged && tomorrowChanged) {
     logger.info(`Scenario 4: Today updated AND tomorrow appeared for queue ${queue}`);
     return buildScenario4Messages(queue, todayDate, tomorrowDate, todayEvents, tomorrowEvents);
   }
   
-  // Scenario 2: Only today changed
+  // Scenario 2: Only today changed (and it's updated, not new)
   if (todayChanged && !tomorrowChanged) {
     logger.info(`Scenario 2: Today updated for queue ${queue}`);
     return [buildScenario2Message(queue, todayDate, todayEvents)];
@@ -233,12 +239,6 @@ function buildMessagesForChanges(params) {
       logger.info(`Scenario 5: Tomorrow updated for queue ${queue}`);
       return buildScenario5Messages(queue, todayDate, tomorrowDate, todayEvents, tomorrowEvents);
     }
-  }
-  
-  // Special case: If today is "new" (first time), use scenario 1
-  if (todayChange.type === 'new' && !tomorrowChanged) {
-    logger.info(`Scenario 1: First schedule for today for queue ${queue}`);
-    return [buildScenario1Message(queue, todayDate, todayEvents)];
   }
   
   // No changes - no messages needed
