@@ -422,6 +422,12 @@ async function handleQueuePageExtra(ctx) {
     return await startWizard(ctx);
   }
   
+  // Only Kyiv region has extra queues
+  if (wizardState.region !== 'kyiv') {
+    await ctx.answerCallbackQuery({ text: '❌ Додаткові черги доступні тільки для регіону Київ', show_alert: true });
+    return await handleQueuePageMain(ctx);
+  }
+  
   const message = `✅ Регіон обрано: <b>${REGIONS[wizardState.region].name}</b>\n\n<b>Крок 2:</b> Оберіть вашу чергу відключень\n<i>(Черги ${KYIV_EXTRA_QUEUE_START}–${KYIV_EXTRA_QUEUE_END})</i>`;
   
   await safeEditMessage(ctx, message, {

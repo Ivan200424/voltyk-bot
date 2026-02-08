@@ -427,6 +427,16 @@ async function handleBackToMain(ctx) {
 async function handleQueueChangePageExtra(ctx) {
   await safeAnswerCallback(ctx);
   
+  const chatId = ctx.from.id;
+  const conversation = await getState('conversation', chatId);
+  const region = conversation?.region;
+  
+  // Only Kyiv region has extra queues
+  if (region !== 'kyiv') {
+    await ctx.answerCallbackQuery({ text: '❌ Додаткові черги доступні тільки для регіону Київ', show_alert: true });
+    return await handleQueueChangePageMain(ctx);
+  }
+  
   const message = `Оберіть чергу:\n<i>(Черги ${KYIV_EXTRA_QUEUE_START}–${KYIV_EXTRA_QUEUE_END})</i>`;
   
   await safeEditMessage(ctx, message, {
