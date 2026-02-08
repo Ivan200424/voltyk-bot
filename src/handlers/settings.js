@@ -9,10 +9,12 @@ const {
   getAlertToggleKeyboard,
   getDeleteDataConfirmKeyboard,
   getDeleteDataFinalKeyboard,
+  getMainMenu,
 } = require('../keyboards/inline');
 const { REGIONS, QUEUES, KYIV_EXTRA_QUEUES } = require('../constants/regions');
 const { isAdmin } = require('../utils');
 const { safeAnswerCallback, safeEditMessage } = require('../utils/errorHandler');
+const { formatMainMenu } = require('../formatter');
 
 /**
  * Handle /settings command
@@ -150,14 +152,16 @@ async function handleQueueChangeFromSettings(ctx) {
   
   await clearState('conversation', chatId);
   
-  const message = `✅ <b>Налаштування оновлено!</b>
+  const updatedUser = await getUser(chatId);
+  
+  await safeEditMessage(ctx, `✅ <b>Налаштування оновлено!</b>
 
 🌍 Новий регіон: <b>${REGIONS[conversation.region].name}</b>
-⚡️ Нова черга: <b>${queue}</b>`;
-  
-  await safeEditMessage(ctx, message, {
+⚡️ Нова черга: <b>${queue}</b>
+
+${formatMainMenu(updatedUser)}`, {
     parse_mode: 'HTML',
-    reply_markup: getSettingsKeyboard(isAdmin(chatId)),
+    reply_markup: getMainMenu(updatedUser),
   });
 }
 

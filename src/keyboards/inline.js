@@ -101,11 +101,11 @@ function getChannelConfirmKeyboard() {
 
 function getSettingsKeyboard(isAdmin) {
   const keyboard = new InlineKeyboard()
-    .text('🌍 Змінити регіон', 'settings_region').row()
-    .text('📺 Керування каналом', 'settings_channel').row()
-    .text('🔔 Сповіщення про відключення', 'settings_alerts').row()
-    .text('🌐 IP-моніторинг', 'settings_ip').row()
-    .text('🗑 Видалити всі дані', 'confirm_delete_data').row();
+    .text('🌍 Регіон', 'settings_region')
+    .text('📺 Канал', 'settings_channel').row()
+    .text('🔔 Сповіщення', 'settings_alerts')
+    .text('🌐 IP-монітор', 'settings_ip').row()
+    .text('🗑 Видалити дані', 'confirm_delete_data').row();
   
   if (isAdmin) {
     keyboard.text('👨‍💼 Адмін-панель', 'admin_panel').row();
@@ -121,10 +121,10 @@ function getChannelSettingsKeyboard(user) {
   
   if (user.channelId) {
     keyboard
-      .text('ℹ️ Інформація про канал', 'channel_info').row()
-      .text('📤 Тестова публікація', 'test_publish').row()
-      .text('🎨 Формат повідомлень', 'format_settings').row()
-      .text('🔌 Від\'єднати канал', 'channel_disconnect').row();
+      .text('ℹ️ Інфо', 'channel_info')
+      .text('📤 Тест', 'test_publish').row()
+      .text('🎨 Формат', 'format_settings')
+      .text('🔌 Від\'єднати', 'channel_disconnect').row();
   } else {
     keyboard.text('➕ Підключити канал', 'channel_setup').row();
   }
