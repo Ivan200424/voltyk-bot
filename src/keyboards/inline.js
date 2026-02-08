@@ -64,17 +64,17 @@ function getQueueKeyboard(region) {
 function getQueueKeyboardExtra() {
   const keyboard = new InlineKeyboard();
   
-  // Додаткові черги 7.1-60.1, по 3 в рядку
+  // Додаткові черги 7.1-60.1, по 5 в рядку
   let count = 0;
   for (const queue of KYIV_EXTRA_QUEUES) {
     keyboard.text(queue, `queue_${queue}`);
     count++;
-    if (count % 3 === 0) {
+    if (count % 5 === 0) {
       keyboard.row();
     }
   }
   
-  if (count % 3 !== 0) {
+  if (count % 5 !== 0) {
     keyboard.row();
   }
   
@@ -331,12 +331,12 @@ function getQueueChangeKeyboardExtra() {
   for (const queue of KYIV_EXTRA_QUEUES) {
     keyboard.text(queue, `queue_${queue}`);
     count++;
-    if (count % 3 === 0) {
+    if (count % 5 === 0) {
       keyboard.row();
     }
   }
   
-  if (count % 3 !== 0) {
+  if (count % 5 !== 0) {
     keyboard.row();
   }
   
