@@ -3,6 +3,7 @@ const Redis = require('ioredis');
 let client = null;
 let redisAvailable = false;
 let reconnectInterval = null;
+let lastStatsCleanup = 0; // Track last cleanup timestamp
 
 // In-memory fallback storage
 const inMemoryStorage = {
@@ -813,7 +814,10 @@ async function incrementStat(field, count = 1) {
     inMemoryStorage.totalStats.set(field, currentTotal + count);
     
     // Clean up old daily stats (keep only last 7 days to prevent memory leak)
-    if (inMemoryStorage.stats.size > 7) {
+    // Only run cleanup once per day to avoid unnecessary processing
+    const now = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    if (inMemoryStorage.stats.size > 7 && (now - lastStatsCleanup) > oneDayMs) {
       const dates = Array.from(inMemoryStorage.stats.keys()).sort();
       const oldestToKeep = dates[dates.length - 7];
       for (const date of dates) {
@@ -821,6 +825,7 @@ async function incrementStat(field, count = 1) {
           inMemoryStorage.stats.delete(date);
         }
       }
+      lastStatsCleanup = now;
     }
     
     return true;
