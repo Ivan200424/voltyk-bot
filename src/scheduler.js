@@ -3,7 +3,7 @@ const { createLogger } = require('./utils/logger');
 const { config, getIntervalSetting } = require('./config');
 const { getAllActiveUsers, getSetting } = require('./database/redis');
 const { fetchScheduleData } = require('./api');
-const { parseScheduleData, getQueueSchedule } = require('./parser');
+const { parseScheduleData, parseScheduleForQueue } = require('./parser');
 const { detectChange, storeHash, filterEventsByDate } = require('./services/scheduleHashService');
 const { buildMessagesForChanges } = require('./services/messageBuilder');
 const { publishToUser } = require('./publisher');
@@ -45,9 +45,9 @@ async function processUserSchedule(bot, user, scheduleData) {
       return results;
     }
     
-    // Get queue schedule
-    const queueSchedule = getQueueSchedule(parsed, user.queue);
-    if (!queueSchedule) {
+    // Get queue schedule using new parser
+    const queueData = parseScheduleForQueue(parsed, user.queue);
+    if (!queueData || !queueData.hasData) {
       logger.debug(`No schedule found for queue ${user.queue} in region ${user.region}`);
       return results;
     }
@@ -57,8 +57,8 @@ async function processUserSchedule(bot, user, scheduleData) {
     const tomorrowDateStr = getTomorrowDateString();
     
     // Filter events for today and tomorrow
-    const todayEvents = filterEventsByDate(queueSchedule.events || [], todayDateStr);
-    const tomorrowEvents = filterEventsByDate(queueSchedule.events || [], tomorrowDateStr);
+    const todayEvents = filterEventsByDate(queueData.events || [], todayDateStr);
+    const tomorrowEvents = filterEventsByDate(queueData.events || [], tomorrowDateStr);
     
     // Detect changes for today and tomorrow
     const todayChange = await detectChange(user.region, user.queue, 'today', todayEvents);

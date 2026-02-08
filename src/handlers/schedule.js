@@ -1,6 +1,6 @@
 const { getUser } = require('../database/redis');
 const { fetchScheduleData } = require('../api');
-const { parseScheduleData, getQueueSchedule, getCurrentStatus } = require('../parser');
+const { parseScheduleData, parseScheduleForQueue, getCurrentStatus } = require('../parser');
 const { formatScheduleMessage, formatTimerMessage, formatMainMenu } = require('../formatter');
 const { getMainMenu, getMenuKeyboard } = require('../keyboards/inline');
 const { safeAnswerCallback } = require('../utils/errorHandler');
@@ -49,7 +49,25 @@ async function handleSchedule(ctx) {
   }
   
   const parsed = parseScheduleData(scheduleData);
-  const message = formatScheduleMessage(parsed, user.region, user.queue);
+  if (!parsed) {
+    const message = '❌ Не вдалося обробити дані графіка. Спробуйте пізніше.';
+    
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(message, {
+        parse_mode: 'HTML',
+        reply_markup: getMenuKeyboard(),
+      });
+    } else {
+      await cleanReply(ctx, message, {
+        parse_mode: 'HTML',
+        reply_markup: getMenuKeyboard(),
+      });
+    }
+    return;
+  }
+  
+  const queueData = parseScheduleForQueue(parsed, user.queue);
+  const message = formatScheduleMessage(queueData, user.region, user.queue);
   
   if (ctx.callbackQuery) {
     await ctx.editMessageText(message, {
@@ -107,8 +125,25 @@ async function handleTimer(ctx) {
   }
   
   const parsed = parseScheduleData(scheduleData);
-  const queueSchedule = getQueueSchedule(parsed, user.queue);
-  const currentStatus = getCurrentStatus(queueSchedule);
+  if (!parsed) {
+    const message = '❌ Не вдалося обробити дані графіка. Спробуйте пізніше.';
+    
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(message, {
+        parse_mode: 'HTML',
+        reply_markup: getMenuKeyboard(),
+      });
+    } else {
+      await cleanReply(ctx, message, {
+        parse_mode: 'HTML',
+        reply_markup: getMenuKeyboard(),
+      });
+    }
+    return;
+  }
+  
+  const queueData = parseScheduleForQueue(parsed, user.queue);
+  const currentStatus = getCurrentStatus(queueData);
   
   const message = formatTimerMessage(currentStatus, user.queue);
   
