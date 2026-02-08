@@ -12,7 +12,9 @@ export function regionKeyboard() {
     if (i + 1 < regions.length) {
       keyboard.text(regions[i + 1], `region:${regions[i + 1]}`);
     }
-    keyboard.row();
+    if (i + 2 < regions.length) {
+      keyboard.row();
+    }
   }
   
   return keyboard;
@@ -29,12 +31,14 @@ export function queueKeyboard(showBack = false) {
     if (i + 1 < queues.length) {
       keyboard.text(queues[i + 1], `queue:${queues[i + 1]}`);
     }
-    keyboard.row();
+    if (i + 2 < queues.length) {
+      keyboard.row();
+    }
   }
   
   // Add back button for wizard step 2
   if (showBack) {
-    keyboard.text('← Назад', 'wizard_back:1').row();
+    keyboard.row().text('← Назад', 'wizard_back:1');
   }
   
   return keyboard;
