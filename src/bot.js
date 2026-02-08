@@ -68,6 +68,7 @@ const { getState } = require('./state/stateManager');
 const { getUser } = require('./database/redis');
 const { formatMainMenu } = require('./formatter');
 const { getMainMenu } = require('./keyboards/inline');
+const { cleanReply } = require('./utils/chatCleaner');
 
 /**
  * Helper function to handle fallback messages
@@ -77,13 +78,13 @@ async function handleFallbackMessage(ctx) {
   const user = await getUser(chatId);
   
   if (user && user.region && user.queue) {
-    await ctx.reply(formatMainMenu(user), {
+    await cleanReply(ctx, formatMainMenu(user), {
       parse_mode: 'HTML',
       reply_markup: getMainMenu(user),
     });
   } else {
     // User not set up - redirect to /start
-    await ctx.reply('👋 Натисніть /start щоб почати налаштування бота.');
+    await cleanReply(ctx, '👋 Натисніть /start щоб почати налаштування бота.');
   }
 }
 
@@ -102,7 +103,7 @@ function setupBot(bot) {
   bot.command('help', handleHelp);
   bot.command('admin', handleAdminPanel);
   bot.command('cancel', async (ctx) => {
-    await ctx.reply('Операцію скасовано.');
+    await cleanReply(ctx, 'Операцію скасовано.');
   });
 
   // === MY_CHAT_MEMBER EVENT ===

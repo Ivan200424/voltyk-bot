@@ -2,6 +2,7 @@ const { getUser, updateUser, getChannel, deleteChannel } = require('../database/
 const { setState, getState, clearState } = require('../state/stateManager');
 const { getChannelSettingsKeyboard } = require('../keyboards/inline');
 const { safeAnswerCallback, safeEditMessage } = require('../utils/errorHandler');
+const { cleanReply } = require('../utils/chatCleaner');
 
 /**
  * Handle /channel command
@@ -11,7 +12,7 @@ async function handleChannelCommand(ctx) {
   const user = await getUser(chatId);
   
   if (!user) {
-    await ctx.reply('⚠️ Спочатку налаштуйтеся через /start', { parse_mode: 'HTML' });
+    await cleanReply(ctx, '⚠️ Спочатку налаштуйтеся через /start', { parse_mode: 'HTML' });
     return;
   }
   
@@ -29,7 +30,7 @@ async function handleChannelCommand(ctx) {
     message += `Ви можете підключити канал для автоматичної публікації графіків.`;
   }
   
-  await ctx.reply(message, {
+  await cleanReply(ctx, message, {
     parse_mode: 'HTML',
     reply_markup: getChannelSettingsKeyboard(user),
   });

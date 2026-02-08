@@ -3,6 +3,7 @@ const { isAdmin } = require('../utils');
 const { getAdminKeyboard, getAdminStatsKeyboard, getAdminSystemKeyboard } = require('../keyboards/inline');
 const { formatAdminStats, formatSystemInfo } = require('../formatter');
 const { safeAnswerCallback, safeEditMessage } = require('../utils/errorHandler');
+const { cleanReply } = require('../utils/chatCleaner');
 
 /**
  * Handle /admin command
@@ -29,7 +30,7 @@ async function handleAdminPanel(ctx) {
       reply_markup: getAdminKeyboard(),
     });
   } else {
-    await ctx.reply(message, {
+    await cleanReply(ctx, message, {
       parse_mode: 'HTML',
       reply_markup: getAdminKeyboard(),
     });
