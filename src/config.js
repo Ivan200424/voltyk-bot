@@ -4,8 +4,11 @@ export const config = {
   botToken: process.env.BOT_TOKEN,
   redisUrl: process.env.REDIS_URL,
   adminChatId: process.env.ADMIN_CHAT_ID,
+  ownerId: process.env.OWNER_ID,
+  adminIds: (process.env.ADMIN_IDS || '').split(',').filter(Boolean),
   webhookDomain: process.env.WEBHOOK_DOMAIN,
   port: process.env.PORT || 3000,
+  botMode: process.env.BOT_MODE || 'webhook',
   
   // Bot settings
   supportChatUrl: 'https://t.me/voltyk_chat',
