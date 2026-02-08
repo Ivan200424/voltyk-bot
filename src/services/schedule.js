@@ -101,13 +101,14 @@ function parseIntervalsFromHourlyData(hourlyData) {
 
 /**
  * Get date timestamp for schedule data lookup
- * The outage-data-ua repo stores dates at 22:00 UTC (which is midnight Kyiv time, UTC+2)
+ * The outage-data-ua repo stores dates at 22:00 UTC (which is midnight Kyiv time)
+ * Note: Ukraine is permanently UTC+2 (no DST since 2011)
  */
 function getDateTimestamp(date) {
   const year = date.getFullYear();
   const month = date.getMonth();
   const day = date.getDate();
-  // Get UTC midnight for the date, then subtract 2 hours to get 22:00 UTC of previous day
+  // Get timestamp for 22:00 UTC (midnight Kyiv time) of the date
   const utcMidnight = Date.UTC(year, month, day, 0, 0, 0, 0);
   const kyivMidnight = utcMidnight - (2 * 60 * 60 * 1000); // Subtract 2 hours
   return Math.floor(kyivMidnight / 1000);
@@ -145,7 +146,7 @@ async function fetchScheduleFromRepo(region, queue, date) {
       await set(cacheKey, jsonData, CACHE_TTL);
     }
     
-    // Get timestamp for the requested date (midnight UTC)
+    // Get timestamp for the requested date (22:00 UTC / midnight Kyiv time)
     const dateTimestamp = getDateTimestamp(date);
     const dateKey = String(dateTimestamp);
     
