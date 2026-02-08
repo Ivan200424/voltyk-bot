@@ -23,7 +23,7 @@ async function handleSchedule(ctx) {
     if (ctx.callbackQuery) {
       await ctx.editMessageText(message, { parse_mode: 'HTML' });
     } else {
-      await ctx.reply(message, { parse_mode: 'HTML' });
+      await cleanReply(ctx, message, { parse_mode: 'HTML' });
     }
     return;
   }
@@ -81,7 +81,7 @@ async function handleTimer(ctx) {
     if (ctx.callbackQuery) {
       await ctx.editMessageText(message, { parse_mode: 'HTML' });
     } else {
-      await ctx.reply(message, { parse_mode: 'HTML' });
+      await cleanReply(ctx, message, { parse_mode: 'HTML' });
     }
     return;
   }
@@ -178,7 +178,7 @@ async function handleStats(ctx) {
       reply_markup: getMenuKeyboard(),
     });
   } else {
-    await ctx.reply(message, {
+    await cleanReply(ctx, message, {
       parse_mode: 'HTML',
       reply_markup: getMenuKeyboard(),
     });
