@@ -1,9 +1,11 @@
 import { formatMainMenu } from '../utils/format.js';
 import { mainMenuKeyboard } from '../keyboards/inline.js';
 import { handleSchedule } from './schedule.js';
+import { getUserData } from '../storage/index.js';
 
 export async function showMainMenu(ctx) {
-  const userData = ctx.userData;
+  // Always get fresh user data from storage
+  const userData = await getUserData(ctx.from.id);
   const text = formatMainMenu(userData);
   
   if (ctx.callbackQuery) {
