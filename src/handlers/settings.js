@@ -4,6 +4,7 @@ const {
   getSettingsKeyboard,
   getRegionChangeKeyboard,
   getQueueChangeKeyboard,
+  getQueueChangeKeyboardExtra,
   getChannelSettingsKeyboard,
   getNotifyTargetKeyboard,
   getAlertToggleKeyboard,
@@ -420,6 +421,50 @@ async function handleBackToMain(ctx) {
   });
 }
 
+/**
+ * Handle queue change page extra (settings second page)
+ */
+async function handleQueueChangePageExtra(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const conversation = await getState('conversation', chatId);
+  
+  if (!conversation || conversation.action !== 'change_region') {
+    await ctx.answerCallbackQuery({ text: '❌ Помилка: невірний стан', show_alert: true });
+    return;
+  }
+  
+  const message = `✅ Регіон обрано: <b>${REGIONS[conversation.region].name}</b>\n\nТепер оберіть чергу:\n(Черги 7–60)`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getQueueChangeKeyboardExtra(),
+  });
+}
+
+/**
+ * Handle queue change page main (settings return to first page)
+ */
+async function handleQueueChangePageMain(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const conversation = await getState('conversation', chatId);
+  
+  if (!conversation || conversation.action !== 'change_region') {
+    await ctx.answerCallbackQuery({ text: '❌ Помилка: невірний стан', show_alert: true });
+    return;
+  }
+  
+  const message = `✅ Регіон обрано: <b>${REGIONS[conversation.region].name}</b>\n\nТепер оберіть чергу:`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getQueueChangeKeyboard(),
+  });
+}
+
 module.exports = {
   handleSettings,
   handleSettingsRegion,
@@ -437,4 +482,6 @@ module.exports = {
   handleBackToMain,
   handleRegionChangeFromSettings,
   handleQueueChangeFromSettings,
+  handleQueueChangePageExtra,
+  handleQueueChangePageMain,
 };

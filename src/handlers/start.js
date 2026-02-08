@@ -2,7 +2,8 @@ const { getUser, saveUser, updateUser } = require('../database/redis');
 const { setState, getState, clearState } = require('../state/stateManager');
 const { 
   getRegionKeyboard, 
-  getQueueKeyboard, 
+  getQueueKeyboard,
+  getQueueKeyboardExtra,
   getWizardNotifyTargetKeyboard,
   getChannelCheckKeyboard,
   getChannelConfirmKeyboard,
@@ -409,6 +410,48 @@ async function handleMyChatMember(ctx) {
   }
 }
 
+/**
+ * Handle queue page extra (wizard second page)
+ */
+async function handleQueuePageExtra(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const wizardState = await getState('wizard', chatId);
+  
+  if (!wizardState || !wizardState.region) {
+    return await startWizard(ctx);
+  }
+  
+  const message = `✅ Регіон обрано: <b>${REGIONS[wizardState.region].name}</b>\n\n<b>Крок 2:</b> Оберіть вашу чергу відключень\n(Черги 7–60)`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getQueueKeyboardExtra(),
+  });
+}
+
+/**
+ * Handle queue page main (wizard return to first page)
+ */
+async function handleQueuePageMain(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const wizardState = await getState('wizard', chatId);
+  
+  if (!wizardState || !wizardState.region) {
+    return await startWizard(ctx);
+  }
+  
+  const message = `✅ Регіон обрано: <b>${REGIONS[wizardState.region].name}</b>\n\n<b>Крок 2:</b> Оберіть вашу чергу відключень`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getQueueKeyboard(),
+  });
+}
+
 module.exports = {
   handleStart,
   handleWizardRegion,
@@ -420,4 +463,6 @@ module.exports = {
   handleChannelReject,
   handleWizardBack,
   handleMyChatMember,
+  handleQueuePageExtra,
+  handleQueuePageMain,
 };
