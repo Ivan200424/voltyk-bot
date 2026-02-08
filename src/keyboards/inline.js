@@ -1,192 +1,327 @@
-import { InlineKeyboard } from 'grammy';
-import { config } from '../config.js';
-import { REGIONS, QUEUES, REGION_NAME_TO_CODE } from '../constants/regions.js';
+const { InlineKeyboard } = require('grammy');
+const { REGIONS, REGION_CODES, QUEUES } = require('../constants/regions');
 
-// Wizard Step 1: Region selection (2 per row as per spec)
-export function regionKeyboard() {
-  const keyboard = new InlineKeyboard();
-  const regions = config.regions; // ['Київ', 'Київщина', 'Одещина', 'Дніпропетровщина']
-  
-  // Display in 2 per row
-  for (let i = 0; i < regions.length; i += 2) {
-    regions.slice(i, i + 2).forEach((regionName) => {
-      const regionCode = REGION_NAME_TO_CODE[regionName] || regionName;
-      keyboard.text(regionName, `region_${regionCode}`);
-    });
-    keyboard.row();
-  }
-  
-  return keyboard;
-}
-
-// Wizard Step 2: Queue selection (3 per row as per spec)
-export function queueKeyboard() {
-  const keyboard = new InlineKeyboard();
-  const queues = QUEUES; // ['1.1', '1.2', '2.1', '2.2', ...]
-  
-  // Display in 3 per row: [1.1] [1.2] [2.1], [2.2] [3.1] [3.2], etc.
-  for (let i = 0; i < queues.length; i += 3) {
-    queues.slice(i, i + 3).forEach((queue) => {
-      keyboard.text(queue, `queue_${queue}`);
-    });
-    keyboard.row();
-  }
-  
-  // Add back button
-  keyboard.text('← Назад', 'back_to_region').row();
-  
-  return keyboard;
-}
-
-// Wizard Step 3: Notification target selection
-export function wizardNotifyTargetKeyboard() {
-  return new InlineKeyboard()
-    .text('📱 У цьому боті', 'wizard_notify_bot').row()
-    .text('📺 У Telegram-каналі', 'wizard_notify_channel').row()
-    .text('← Назад', 'wizard_back');
-}
-
-// Wizard Step 4: Channel connection check
-export function channelCheckKeyboard() {
-  return new InlineKeyboard()
-    .text('🔄 Перевірити', 'channel_check').row()
-    .text('← Назад', 'wizard_back');
-}
-
-// Channel confirmation keyboard
-export function channelConfirmKeyboard() {
-  return new InlineKeyboard()
-    .text('✅ Так, підключити', 'channel_confirm').row()
-    .text('❌ Ні', 'channel_reject');
-}
-
-// Main menu keyboard
-export function mainMenuKeyboard(userData = null) {
+function getMainMenu(user) {
   const keyboard = new InlineKeyboard()
-    .text('📊 Графік', 'menu_schedule').text('⏱ Таймер', 'menu_timer').row()
-    .text('📈 Статистика', 'menu_stats').text('❓ Допомога', 'menu_help').row()
-    .text('⚙️ Налаштування', 'menu_settings').row();
+    .text('📊 Графік відключень', 'menu_schedule').row()
+    .text('⏱ Наступне відключення', 'menu_timer').row()
+    .text('📈 Моя статистика', 'menu_stats')
+    .text('❓ Допомога', 'menu_help').row()
+    .text('⚙️ Налаштування', 'settings');
   
-  // Add channel pause/resume button if user has channel
-  if (userData && userData.channel_id && userData.channel_status === 'active') {
-    if (userData.channel_paused) {
-      keyboard.text('✅ Відновити роботу каналу', 'channel_resume').row();
-    } else {
-      keyboard.text('🛑 Тимчасово зупинити канал', 'channel_pause').row();
+  return keyboard;
+}
+
+function getRegionKeyboard() {
+  const keyboard = new InlineKeyboard();
+  
+  // Add regions 2 per row
+  let count = 0;
+  for (const code of REGION_CODES) {
+    keyboard.text(REGIONS[code].name, `region_${code}`);
+    count++;
+    if (count % 2 === 0) {
+      keyboard.row();
     }
   }
   
-  return keyboard;
-}
-
-// Settings keyboard
-export function settingsKeyboard(isAdmin = false) {
-  const keyboard = new InlineKeyboard()
-    .text('📍 Регіон', 'settings_region').text('📡 IP', 'settings_ip').row()
-    .text('📺 Канал', 'settings_channel').text('🔔 Сповіщення', 'settings_alerts').row();
-  
-  // Add admin panel button if user is admin
-  if (isAdmin) {
-    keyboard.text('👑 Адмін-панель', 'admin_panel').row();
+  // If odd number of regions, add row
+  if (count % 2 !== 0) {
+    keyboard.row();
   }
   
-  keyboard.text('🗑 Видалити всі дані', 'confirm_delete_data').row()
-    .text('← Назад', 'back_to_main').text('⤴ Меню', 'back_to_main');
+  return keyboard;
+}
+
+function getQueueKeyboard() {
+  const keyboard = new InlineKeyboard();
+  
+  // Add queues 3 per row
+  let count = 0;
+  for (const queue of QUEUES) {
+    keyboard.text(queue, `queue_${queue}`);
+    count++;
+    if (count % 3 === 0) {
+      keyboard.row();
+    }
+  }
+  
+  // Add back button
+  if (count % 3 !== 0) {
+    keyboard.row();
+  }
+  keyboard.text('← Назад', 'back_to_region');
   
   return keyboard;
 }
 
-// Help keyboard
-export function helpKeyboard() {
+function getWizardNotifyTargetKeyboard() {
   return new InlineKeyboard()
-    .url('💬 Обговорення / Підтримка', config.supportChatUrl).row()
-    .text('← Назад', 'back_to_main').text('⤴ Меню', 'back_to_main');
+    .text('💬 В особисті повідомлення', 'wizard_notify_bot').row()
+    .text('📺 В канал', 'wizard_notify_channel').row()
+    .text('← Назад', 'wizard_back');
 }
 
-// Fallback keyboard
-export function fallbackKeyboard() {
+function getChannelCheckKeyboard() {
   return new InlineKeyboard()
-    .text('⤴ Меню', 'back_to_main')
-    .text('❓ Допомога', 'menu_help');
+    .text('✅ Перевірити', 'channel_check').row()
+    .text('← Назад', 'wizard_back');
 }
 
-// Navigation back keyboard
-export function backMenuKeyboard() {
+function getChannelConfirmKeyboard() {
+  return new InlineKeyboard()
+    .text('✅ Так, підключити', 'channel_confirm')
+    .text('❌ Ні, скасувати', 'channel_reject');
+}
+
+function getSettingsKeyboard(isAdmin) {
+  const keyboard = new InlineKeyboard()
+    .text('🌍 Змінити регіон', 'settings_region').row()
+    .text('📺 Керування каналом', 'settings_channel').row()
+    .text('🔔 Сповіщення про відключення', 'settings_alerts').row()
+    .text('🌐 IP-моніторинг', 'settings_ip').row()
+    .text('🗑 Видалити всі дані', 'confirm_delete_data').row();
+  
+  if (isAdmin) {
+    keyboard.text('👨‍💼 Адмін-панель', 'admin_panel').row();
+  }
+  
+  keyboard.text('⤴ Головне меню', 'back_to_main');
+  
+  return keyboard;
+}
+
+function getChannelSettingsKeyboard(user) {
+  const keyboard = new InlineKeyboard();
+  
+  if (user.channelId) {
+    keyboard
+      .text('ℹ️ Інформація про канал', 'channel_info').row()
+      .text('📤 Тестова публікація', 'test_publish').row()
+      .text('🎨 Формат повідомлень', 'format_settings').row()
+      .text('🔌 Від\'єднати канал', 'channel_disconnect').row();
+  } else {
+    keyboard.text('➕ Підключити канал', 'channel_setup').row();
+  }
+  
+  keyboard
+    .text('← Назад', 'back_to_settings')
+    .text('⤴ Меню', 'back_to_main');
+  
+  return keyboard;
+}
+
+function getNotifyTargetKeyboard(currentTarget) {
+  const keyboard = new InlineKeyboard();
+  
+  const targets = [
+    { text: '💬 Бот', value: 'bot' },
+    { text: '📺 Канал', value: 'channel' },
+    { text: '📱 Обидва', value: 'both' },
+  ];
+  
+  targets.forEach(target => {
+    const prefix = currentTarget === target.value ? '✅ ' : '';
+    keyboard.text(`${prefix}${target.text}`, `notify_target_${target.value}`).row();
+  });
+  
+  keyboard
+    .text('← Назад', 'back_to_settings')
+    .text('⤴ Меню', 'back_to_main');
+  
+  return keyboard;
+}
+
+function getAlertToggleKeyboard(enabled) {
+  const status = enabled ? '✅ Увімкнено' : '❌ Вимкнено';
+  const action = enabled ? 'Вимкнути' : 'Увімкнути';
+  
+  return new InlineKeyboard()
+    .text(`${status}`, 'alert_status').row()
+    .text(action, 'alert_toggle').row()
+    .text('← Назад', 'back_to_settings')
+    .text('⤴ Меню', 'back_to_main');
+}
+
+function getDeleteDataConfirmKeyboard() {
+  return new InlineKeyboard()
+    .text('⚠️ Так, видалити мої дані', 'delete_data_step2').row()
+    .text('← Назад', 'back_to_settings');
+}
+
+function getDeleteDataFinalKeyboard() {
+  return new InlineKeyboard()
+    .text('❌ ПІДТВЕРДЖУЮ ВИДАЛЕННЯ', 'confirm_deactivate').row()
+    .text('← Назад', 'back_to_settings');
+}
+
+function getAdminKeyboard() {
+  return new InlineKeyboard()
+    .text('📊 Статистика', 'admin_stats').row()
+    .text('👥 Користувачі', 'admin_users')
+    .text('📢 Розсилка', 'admin_broadcast').row()
+    .text('💻 Система', 'admin_system')
+    .text('📈 Зростання', 'admin_growth').row()
+    .text('⏱ Інтервали', 'admin_intervals')
+    .text('⏳ Debounce', 'admin_debounce').row()
+    .text('⏸ Пауза режим', 'admin_pause')
+    .text('🗑 Очистити БД', 'admin_clear').row()
+    .text('← Назад', 'back_to_settings');
+}
+
+function getBackMenuKeyboard() {
   return new InlineKeyboard()
     .text('← Назад', 'back_to_settings')
     .text('⤴ Меню', 'back_to_main');
 }
 
-// Just menu keyboard
-export function menuKeyboard() {
+function getBackSettingsKeyboard() {
   return new InlineKeyboard()
+    .text('← Налаштування', 'back_to_settings')
     .text('⤴ Меню', 'back_to_main');
 }
 
-// Channel setup description choice keyboard
-export function channelSetupDescriptionKeyboard() {
+function getMenuKeyboard() {
   return new InlineKeyboard()
-    .text('✍️ Додати опис', 'channel_add_description').row()
-    .text('⏭️ Пропустити', 'channel_skip_description');
+    .text('⤴ Головне меню', 'back_to_main');
 }
 
-// Channel settings keyboard
-export function channelSettingsKeyboard(userData = null) {
+function getBackToMainKeyboard() {
+  return new InlineKeyboard()
+    .text('⤴ Головне меню', 'back_to_main');
+}
+
+function getCancelKeyboard() {
+  return new InlineKeyboard()
+    .text('🚫 Скасувати', 'cancel');
+}
+
+function getAdminStatsKeyboard() {
+  return new InlineKeyboard()
+    .text('🔄 Оновити', 'admin_stats').row()
+    .text('← Назад', 'admin_panel')
+    .text('⤴ Меню', 'back_to_main');
+}
+
+function getAdminSystemKeyboard() {
+  return new InlineKeyboard()
+    .text('🔄 Оновити', 'admin_system').row()
+    .text('🗑 Очистити кеш', 'admin_clear_cache').row()
+    .text('← Назад', 'admin_panel')
+    .text('⤴ Меню', 'back_to_main');
+}
+
+function getAdminIntervalsKeyboard() {
+  return new InlineKeyboard()
+    .text('⏱ Графік: 5хв', 'interval_schedule_5')
+    .text('10хв', 'interval_schedule_10')
+    .text('15хв', 'interval_schedule_15').row()
+    .text('🛡 Перевірка каналів: 30хв', 'interval_channel_30')
+    .text('1г', 'interval_channel_60').row()
+    .text('← Назад', 'admin_panel')
+    .text('⤴ Меню', 'back_to_main');
+}
+
+function getAdminDebounceKeyboard(currentValue) {
+  return new InlineKeyboard()
+    .text(`⏳ Поточне: ${currentValue}с`, 'debounce_info').row()
+    .text('10с', 'debounce_10')
+    .text('30с', 'debounce_30')
+    .text('60с', 'debounce_60').row()
+    .text('← Назад', 'admin_panel')
+    .text('⤴ Меню', 'back_to_main');
+}
+
+function getAdminPauseKeyboard(isPaused) {
+  const status = isPaused ? '✅ Активний' : '❌ Неактивний';
+  const action = isPaused ? 'Відновити' : 'Призупинити';
+  
+  return new InlineKeyboard()
+    .text(`Статус: ${status}`, 'pause_status').row()
+    .text(action, isPaused ? 'pause_resume' : 'pause_enable').row()
+    .text('← Назад', 'admin_panel')
+    .text('⤴ Меню', 'back_to_main');
+}
+
+function getRegionChangeKeyboard() {
   const keyboard = new InlineKeyboard();
   
-  if (userData && userData.channel_id && userData.channel_status === 'active') {
-    keyboard
-      .text('ℹ️ Інформація', 'channel_info').row()
-      .text('📝 Формат', 'channel_format').row()
-      .text('🔄 Перепідключити канал', 'channel_reconnect').row()
-      .text('🔴 Відключити канал', 'channel_disconnect').row();
-  } else {
-    keyboard.text('📺 Підключити канал', 'channel_setup').row();
+  // Add regions 2 per row
+  let count = 0;
+  for (const code of REGION_CODES) {
+    keyboard.text(REGIONS[code].name, `region_${code}`);
+    count++;
+    if (count % 2 === 0) {
+      keyboard.row();
+    }
   }
   
-  keyboard.text('← Назад', 'back_to_settings').text('⤴ Меню', 'back_to_main');
+  if (count % 2 !== 0) {
+    keyboard.row();
+  }
+  
+  keyboard
+    .text('← Назад', 'back_to_settings')
+    .text('⤴ Меню', 'back_to_main');
   
   return keyboard;
 }
 
-// Notification target keyboard (bot/channel/both)
-export function notifyTargetKeyboard() {
-  return new InlineKeyboard()
-    .text('📱 Тільки в боті', 'notify_target_bot').row()
-    .text('📺 Тільки в каналі', 'notify_target_channel').row()
-    .text('📱📺 В обох', 'notify_target_both').row()
-    .text('← Назад', 'back_to_settings').text('⤴ Меню', 'back_to_main');
+function getQueueChangeKeyboard() {
+  const keyboard = new InlineKeyboard();
+  
+  // Add queues 3 per row
+  let count = 0;
+  for (const queue of QUEUES) {
+    keyboard.text(queue, `queue_${queue}`);
+    count++;
+    if (count % 3 === 0) {
+      keyboard.row();
+    }
+  }
+  
+  if (count % 3 !== 0) {
+    keyboard.row();
+  }
+  
+  keyboard
+    .text('← Назад', 'settings_region')
+    .text('⤴ Меню', 'back_to_main');
+  
+  return keyboard;
 }
 
-// Admin panel keyboard
-export function adminPanelKeyboard() {
+function getChannelDisconnectConfirmKeyboard() {
   return new InlineKeyboard()
-    .text('📊 Статистика', 'admin_stats').text('👥 Користувачі', 'admin_users').row()
-    .text('📢 Розсилка', 'admin_broadcast').text('💻 Система', 'admin_system').row()
-    .text('📈 Ріст', 'admin_growth').text('⏱ Інтервали', 'admin_intervals').row()
-    .text('⏸ Debounce', 'admin_debounce').text('⏸️ Режим паузи', 'admin_pause').row()
-    .text('🗑 Очистити базу', 'admin_clear_db').row()
-    .text('← Назад', 'back_to_settings').text('⤴ Меню', 'back_to_main');
+    .text('⚠️ Так, від\'єднати', 'confirm_channel_disconnect').row()
+    .text('← Назад', 'settings_channel');
 }
 
-// Delete data confirmation keyboard
-export function deleteDataConfirmKeyboard() {
-  return new InlineKeyboard()
-    .text('✅ Так, видалити', 'delete_data_step2').row()
-    .text('❌ Скасувати', 'back_to_settings');
-}
-
-// Final delete confirmation
-export function deleteDataFinalKeyboard() {
-  return new InlineKeyboard()
-    .text('⚠️ Так, видалити ВСЕ!', 'confirm_deactivate').row()
-    .text('❌ Скасувати', 'back_to_settings');
-}
-
-// Toggle alerts keyboard
-export function alertToggleKeyboard(enabled) {
-  const text = enabled ? '🔕 Вимкнути сповіщення' : '🔔 Увімкнути сповіщення';
-  return new InlineKeyboard()
-    .text(text, 'alert_toggle').row()
-    .text('← Назад', 'back_to_settings').text('⤴ Меню', 'back_to_main');
-}
+module.exports = {
+  getMainMenu,
+  getRegionKeyboard,
+  getQueueKeyboard,
+  getWizardNotifyTargetKeyboard,
+  getChannelCheckKeyboard,
+  getChannelConfirmKeyboard,
+  getSettingsKeyboard,
+  getChannelSettingsKeyboard,
+  getNotifyTargetKeyboard,
+  getAlertToggleKeyboard,
+  getDeleteDataConfirmKeyboard,
+  getDeleteDataFinalKeyboard,
+  getAdminKeyboard,
+  getBackMenuKeyboard,
+  getBackSettingsKeyboard,
+  getMenuKeyboard,
+  getBackToMainKeyboard,
+  getCancelKeyboard,
+  getAdminStatsKeyboard,
+  getAdminSystemKeyboard,
+  getAdminIntervalsKeyboard,
+  getAdminDebounceKeyboard,
+  getAdminPauseKeyboard,
+  getRegionChangeKeyboard,
+  getQueueChangeKeyboard,
+  getChannelDisconnectConfirmKeyboard,
+};

@@ -1,27 +1,24 @@
 {
   "name": "voltyk-bot",
-  "version": "1.0.0",
-  "description": "Telegram bot for electricity outage schedules in Ukraine",
+  "version": "2.0.0",
+  "description": "Voltyk Telegram Bot - моніторинг відключень електроенергії в Україні (Redis edition)",
   "main": "src/index.js",
-  "type": "module",
   "scripts": {
-    "start": "node --no-deprecation src/index.js",
+    "start": "node src/index.js",
     "dev": "node --watch src/index.js"
   },
-  "keywords": [
-    "telegram",
-    "bot",
-    "ukraine",
-    "electricity"
-  ],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "grammy": "^1.21.1",
-    "redis": "^4.6.13",
+    "grammy": "^1.39.3",
+    "@grammyjs/auto-retry": "^2.0.2",
+    "@grammyjs/runner": "^2.0.3",
+    "@grammyjs/transformer-throttler": "^2.0.1",
+    "ioredis": "^5.4.1",
+    "express": "^4.21.0",
+    "axios": "^1.7.9",
+    "node-cron": "^3.0.3",
     "dotenv": "^16.4.5"
   },
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=20.0.0"
   }
 }

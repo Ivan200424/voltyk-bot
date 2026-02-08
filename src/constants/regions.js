@@ -1,43 +1,39 @@
-// Regions and queues configuration
-
-export const REGIONS = {
+const REGIONS = {
   kyiv: { name: 'Київ', code: 'kyiv' },
   'kyiv-region': { name: 'Київщина', code: 'kyiv-region' },
   dnipro: { name: 'Дніпропетровщина', code: 'dnipro' },
   odesa: { name: 'Одещина', code: 'odesa' },
+  lviv: { name: 'Львівщина', code: 'lviv' },
+  kharkiv: { name: 'Харківщина', code: 'kharkiv' },
+  donetsk: { name: 'Донеччина', code: 'donetsk' },
+  zaporizhzhia: { name: 'Запорізька область', code: 'zaporizhzhia' },
+  vinnytsia: { name: 'Вінницька область', code: 'vinnytsia' },
+  zhytomyr: { name: 'Житомирська область', code: 'zhytomyr' },
+  ivano-frankivsk: { name: 'Івано-Франківська область', code: 'ivano-frankivsk' },
+  kirovohrad: { name: 'Кіровоградська область', code: 'kirovohrad' },
+  luhansk: { name: 'Луганська область', code: 'luhansk' },
+  mykolaiv: { name: 'Миколаївська область', code: 'mykolaiv' },
+  poltava: { name: 'Полтавська область', code: 'poltava' },
+  rivne: { name: 'Рівненська область', code: 'rivne' },
+  sumy: { name: 'Сумська область', code: 'sumy' },
+  ternopil: { name: 'Тернопільська область', code: 'ternopil' },
+  kherson: { name: 'Херсонська область', code: 'kherson' },
+  khmelnytskyi: { name: 'Хмельницька область', code: 'khmelnytskyi' },
+  cherkasy: { name: 'Черкаська область', code: 'cherkasy' },
+  chernivtsi: { name: 'Чернівецька область', code: 'chernivtsi' },
+  chernihiv: { name: 'Чернігівська область', code: 'chernihiv' },
 };
 
-// Map of region display names to codes
-export const REGION_NAME_TO_CODE = {
-  'Київ': 'kyiv',
-  'Київщина': 'kyiv-region',
-  'Дніпропетровщина': 'dnipro',
-  'Одещина': 'odesa',
-};
+const GROUPS = [1, 2, 3, 4, 5, 6];
+const SUBGROUPS = [1, 2];
 
-// Map of region codes to display names (for backward compatibility)
-export const REGION_CODE_TO_NAME = {
-  'kyiv': 'Київ',
-  'kyiv-region': 'Київщина',
-  'dnipro': 'Дніпропетровщина',
-  'odesa': 'Одещина',
-};
+const QUEUES = [];
+GROUPS.forEach(group => {
+  SUBGROUPS.forEach(subgroup => {
+    QUEUES.push(`${group}.${subgroup}`);
+  });
+});
 
-export const GROUPS = [1, 2, 3, 4, 5, 6];
-export const SUBGROUPS = [1, 2];
+const REGION_CODES = Object.keys(REGIONS);
 
-// Generate all queue combinations: 1.1, 1.2, 2.1, 2.2, etc.
-export const QUEUES = GROUPS.flatMap(group => 
-  SUBGROUPS.map(subgroup => `${group}.${subgroup}`)
-);
-
-// Get region by code
-export function getRegion(code) {
-  return REGIONS[code] || null;
-}
-
-// Get region by name
-export function getRegionByName(name) {
-  const code = REGION_NAME_TO_CODE[name];
-  return code ? REGIONS[code] : null;
-}
+module.exports = { REGIONS, REGION_CODES, GROUPS, SUBGROUPS, QUEUES };
