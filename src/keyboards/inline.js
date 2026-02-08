@@ -33,12 +33,25 @@ function getRegionKeyboard() {
   return keyboard;
 }
 
-function getQueueKeyboard(region) {
+function getQueueKeyboard(page = 1, allQueues = QUEUES, region = null) {
   const keyboard = new InlineKeyboard();
+  
+  // Determine standard queues (1.1-6.2) and extra queues (7.1+)
+  const standardCount = QUEUES.length; // 12 queues
+  const standardQueues = allQueues.slice(0, standardCount);
+  const extraQueues = allQueues.slice(standardCount);
+  const hasExtraQueues = extraQueues.length > 0;
+  
+  let queuesToShow = [];
+  if (page === 1) {
+    queuesToShow = standardQueues;
+  } else if (page === 2) {
+    queuesToShow = extraQueues;
+  }
   
   // Add queues 3 per row
   let count = 0;
-  for (const queue of QUEUES) {
+  for (const queue of queuesToShow) {
     keyboard.text(queue, `queue_${queue}`);
     count++;
     if (count % 3 === 0) {
@@ -51,34 +64,17 @@ function getQueueKeyboard(region) {
     keyboard.row();
   }
   
-  // Кнопка "Інші черги →" тільки для Києва
-  if (region === 'kyiv') {
-    keyboard.text('Інші черги →', 'queues_page_extra').row();
-  }
-  
-  keyboard.text('← Назад', 'back_to_region');
-  
-  return keyboard;
-}
-
-function getQueueKeyboardExtra() {
-  const keyboard = new InlineKeyboard();
-  
-  // Додаткові черги 7.1-60.1, по 5 в рядку
-  let count = 0;
-  for (const queue of KYIV_EXTRA_QUEUES) {
-    keyboard.text(queue, `queue_${queue}`);
-    count++;
-    if (count % 5 === 0) {
-      keyboard.row();
+  // Navigation buttons
+  if (page === 1) {
+    // Page 1: Show "Other queues" button if there are extra queues
+    if (hasExtraQueues) {
+      keyboard.text('📋 Інші черги →', 'queue_page_2').row();
     }
+    keyboard.text('← Назад', 'back_to_region');
+  } else if (page === 2) {
+    // Page 2: Show back to page 1
+    keyboard.text('← Назад', 'queue_page_1');
   }
-  
-  if (count % 5 !== 0) {
-    keyboard.row();
-  }
-  
-  keyboard.text('← Назад', 'queues_page_main');
   
   return keyboard;
 }
@@ -295,12 +291,25 @@ function getRegionChangeKeyboard() {
   return keyboard;
 }
 
-function getQueueChangeKeyboard(region) {
+function getQueueChangeKeyboard(page = 1, allQueues = QUEUES, region = null) {
   const keyboard = new InlineKeyboard();
+  
+  // Determine standard queues (1.1-6.2) and extra queues (7.1+)
+  const standardCount = QUEUES.length; // 12 queues
+  const standardQueues = allQueues.slice(0, standardCount);
+  const extraQueues = allQueues.slice(standardCount);
+  const hasExtraQueues = extraQueues.length > 0;
+  
+  let queuesToShow = [];
+  if (page === 1) {
+    queuesToShow = standardQueues;
+  } else if (page === 2) {
+    queuesToShow = extraQueues;
+  }
   
   // Add queues 3 per row
   let count = 0;
-  for (const queue of QUEUES) {
+  for (const queue of queuesToShow) {
     keyboard.text(queue, `queue_${queue}`);
     count++;
     if (count % 3 === 0) {
@@ -312,37 +321,19 @@ function getQueueChangeKeyboard(region) {
     keyboard.row();
   }
   
-  // Кнопка "Інші черги →" тільки для Києва
-  if (region === 'kyiv') {
-    keyboard.text('Інші черги →', 'queues_change_page_extra').row();
-  }
-  
-  keyboard
-    .text('← Назад', 'settings_region')
-    .text('⤴ Меню', 'back_to_main');
-  
-  return keyboard;
-}
-
-function getQueueChangeKeyboardExtra() {
-  const keyboard = new InlineKeyboard();
-  
-  let count = 0;
-  for (const queue of KYIV_EXTRA_QUEUES) {
-    keyboard.text(queue, `queue_${queue}`);
-    count++;
-    if (count % 5 === 0) {
-      keyboard.row();
+  // Navigation buttons
+  if (page === 1) {
+    // Page 1: Show "Other queues" button if there are extra queues
+    if (hasExtraQueues) {
+      keyboard.text('📋 Інші черги →', 'queue_change_page_2').row();
     }
+    keyboard
+      .text('← Назад', 'settings_region')
+      .text('⤴ Меню', 'back_to_main');
+  } else if (page === 2) {
+    // Page 2: Show back to page 1
+    keyboard.text('← Назад', 'queue_change_page_1');
   }
-  
-  if (count % 5 !== 0) {
-    keyboard.row();
-  }
-  
-  keyboard
-    .text('← Назад', 'queues_change_page_main')
-    .text('⤴ Меню', 'back_to_main');
   
   return keyboard;
 }
@@ -357,7 +348,6 @@ module.exports = {
   getMainMenu,
   getRegionKeyboard,
   getQueueKeyboard,
-  getQueueKeyboardExtra,
   getWizardNotifyTargetKeyboard,
   getChannelCheckKeyboard,
   getChannelConfirmKeyboard,
@@ -380,6 +370,5 @@ module.exports = {
   getAdminPauseKeyboard,
   getRegionChangeKeyboard,
   getQueueChangeKeyboard,
-  getQueueChangeKeyboardExtra,
   getChannelDisconnectConfirmKeyboard,
 };
