@@ -11,6 +11,10 @@ const { getTodayDateString, getTomorrowDateString, getTodayDate, getTomorrowDate
 const { REGION_CODES } = require('./constants/regions');
 
 const logger = createLogger('Scheduler');
+
+// Scheduler configuration
+const INTER_USER_DELAY_MS = 100; // Delay between processing users to avoid rate limits
+
 let scheduledTasks = [];
 
 /**
@@ -178,7 +182,7 @@ async function checkSchedules(bot) {
           }
           
           // Small delay between users to avoid rate limits
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, INTER_USER_DELAY_MS));
         }
       } catch (error) {
         logger.error(`Error processing region ${region}:`, error.message);

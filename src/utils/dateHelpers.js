@@ -1,8 +1,3 @@
-const { config } = require('../config');
-
-/**
- * Ukrainian day names
- */
 const UKRAINIAN_DAY_NAMES = [
   'Неділя',
   'Понеділок',

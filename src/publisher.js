@@ -6,6 +6,9 @@ const { setCache, getCache } = require('./database/redis');
 
 const logger = createLogger('Publisher');
 
+// Rate limiting configuration
+const MESSAGE_DELAY_MS = 50; // Delay between messages to avoid Telegram API rate limits
+
 // Cache for photo file_id to avoid re-uploading
 let cachedPhotoFileId = null;
 
@@ -160,10 +163,10 @@ async function publishToChannel(bot, channelId, text, options = {}) {
  * @param {number|string} targetId - Chat or channel ID
  * @param {Array} messages - Array of message objects with {text} property
  * @param {string} targetType - 'bot' or 'channel'
- * @param {number} delayMs - Delay between messages in milliseconds
+ * @param {number} delayMs - Delay between messages in milliseconds (default: MESSAGE_DELAY_MS)
  * @returns {Promise<Object>} Results object with success count and errors
  */
-async function publishBatch(bot, targetId, messages, targetType = 'bot', delayMs = 50) {
+async function publishBatch(bot, targetId, messages, targetType = 'bot', delayMs = MESSAGE_DELAY_MS) {
   const results = {
     success: 0,
     failed: 0,
@@ -217,14 +220,14 @@ async function publishToUser(bot, user, messages) {
   
   // Publish to bot DM
   if (notifyTarget === 'bot' || notifyTarget === 'both') {
-    const botResults = await publishBatch(bot, user.chatId, messages, 'bot', 50);
+    const botResults = await publishBatch(bot, user.chatId, messages, 'bot', MESSAGE_DELAY_MS);
     results.bot = botResults;
     logger.info(`Published ${botResults.success}/${messages.length} messages to user ${user.chatId} (bot)`);
   }
   
   // Publish to channel
   if ((notifyTarget === 'channel' || notifyTarget === 'both') && user.channelId) {
-    const channelResults = await publishBatch(bot, user.channelId, messages, 'channel', 50);
+    const channelResults = await publishBatch(bot, user.channelId, messages, 'channel', MESSAGE_DELAY_MS);
     results.channel = channelResults;
     logger.info(`Published ${channelResults.success}/${messages.length} messages to channel ${user.channelId}`);
   }
