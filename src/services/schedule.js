@@ -199,6 +199,11 @@ export async function getScheduleData(region, queue) {
     const todaySchedule = await fetchScheduleFromRepo(region, queue, today);
     const tomorrowSchedule = await fetchScheduleFromRepo(region, queue, tomorrow);
     
+    // If today's schedule is not available, return null
+    if (!todaySchedule) {
+      return null;
+    }
+    
     // Calculate hashes
     const todayHash = generateHash(todaySchedule.intervals);
     const tomorrowHash = tomorrowSchedule ? generateHash(tomorrowSchedule.intervals) : null;
