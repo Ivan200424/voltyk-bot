@@ -23,13 +23,8 @@ let isDirty = false;
  */
 function loadFromDisk() {
   try {
-    // Check if file exists
-    if (!fs.existsSync(STORAGE_FILE)) {
-      console.log('📁 Storage: No existing file found, starting fresh');
-      return;
-    }
-
-    // Read and parse file
+    // Use synchronous read for initial load at module startup
+    // This ensures data is loaded before any operations occur
     const fileContent = fs.readFileSync(STORAGE_FILE, 'utf8');
     const data = JSON.parse(fileContent);
 
@@ -50,7 +45,9 @@ function loadFromDisk() {
 
     console.log(`📁 Storage: Loaded ${loadedCount} items from disk${expiredCount > 0 ? ` (${expiredCount} expired items discarded)` : ''}`);
   } catch (error) {
-    if (error instanceof SyntaxError) {
+    if (error.code === 'ENOENT') {
+      console.log('📁 Storage: No existing file found, starting fresh');
+    } else if (error instanceof SyntaxError) {
       console.error('📁 Storage: Corrupted JSON file, starting fresh:', error.message);
     } else {
       console.error('📁 Storage: Error loading from disk:', error.message);
@@ -77,10 +74,8 @@ function saveToDisk() {
     if (!isDirty) return;
 
     try {
-      // Ensure directory exists
-      if (!fs.existsSync(STORAGE_DIR)) {
-        fs.mkdirSync(STORAGE_DIR, { recursive: true });
-      }
+      // Ensure directory exists (recursive option won't throw if it exists)
+      await fs.promises.mkdir(STORAGE_DIR, { recursive: true });
 
       // Convert Map to plain object
       const data = Object.fromEntries(storage);
