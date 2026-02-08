@@ -30,6 +30,7 @@ export async function handleWizardRegion(ctx) {
   const userData = await getUserData(userId);
   userData.region = region;
   await setUserData(userId, userData);
+  ctx.userData = userData;
   
   await setWizardState(userId, { step: 2, region });
   
@@ -49,6 +50,7 @@ export async function handleWizardQueue(ctx) {
   const userData = await getUserData(userId);
   userData.queue = queue;
   await setUserData(userId, userData);
+  ctx.userData = userData;
   
   await setWizardState(userId, { step: 3, queue });
   
@@ -68,6 +70,7 @@ export async function handleWizardNotifyTo(ctx) {
   const userData = await getUserData(userId);
   userData.notifyTo = notifyTo;
   await setUserData(userId, userData);
+  ctx.userData = userData;
   
   await setWizardState(userId, { step: 4, notifyTo });
   
@@ -88,6 +91,7 @@ export async function handleWizardIpAdd(ctx) {
   const userData = await getUserData(userId);
   userData.wizardCompleted = true;
   await setUserData(userId, userData);
+  ctx.userData = userData;
   
   await delWizardState(userId);
   
@@ -104,6 +108,7 @@ export async function handleWizardIpSkip(ctx) {
   const userData = await getUserData(userId);
   userData.wizardCompleted = true;
   await setUserData(userId, userData);
+  ctx.userData = userData;
   
   await delWizardState(userId);
   await ctx.answerCallbackQuery();

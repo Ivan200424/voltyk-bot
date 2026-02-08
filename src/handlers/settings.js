@@ -43,6 +43,7 @@ export async function handleToggleNotifications(ctx) {
   
   userData.notificationsEnabled = !userData.notificationsEnabled;
   await setUserData(userId, userData);
+  ctx.userData = userData;
   
   const status = userData.notificationsEnabled ? 'увімкнено' : 'вимкнено';
   
@@ -69,6 +70,7 @@ export async function handleRegionChangeFromSettings(ctx) {
   const userData = await getUserData(userId);
   userData.region = region;
   await setUserData(userId, userData);
+  ctx.userData = userData;
   
   await ctx.answerCallbackQuery({
     text: `📍 Регіон змінено на ${region}`,
@@ -90,6 +92,7 @@ export async function handleQueueChangeFromSettings(ctx) {
   const userData = await getUserData(userId);
   userData.queue = queue;
   await setUserData(userId, userData);
+  ctx.userData = userData;
   
   await ctx.answerCallbackQuery({
     text: `🔢 Черга змінена на ${queue}`,

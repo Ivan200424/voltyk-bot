@@ -202,7 +202,8 @@ export async function handleSchedule(ctx) {
     
     // Update lastBotMessageId
     userData.lastBotMessageId = sentMessage.message_id;
-    await setUserData(userData.id, userData);
+    await setUserData(userId, userData);
+    ctx.userData = userData;
     
   } catch (error) {
     console.error('Error handling schedule:', error);
