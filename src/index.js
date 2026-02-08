@@ -24,13 +24,14 @@ async function main() {
   logger.info('🚀 Starting Voltyk Bot...');
   
   try {
-    // Connect to Redis
+    // Try to connect to Redis
     const redis = getRedisClient();
     await redis.connect();
     logger.info('✅ Redis connected successfully');
   } catch (error) {
-    logger.error('❌ Failed to connect to Redis:', error.message);
-    process.exit(1);
+    logger.warn('⚠️  Failed to connect to Redis:', error.message);
+    logger.warn('⚠️  Bot will continue with in-memory storage (data will not persist across restarts)');
+    // Do not exit - bot will use in-memory fallback
   }
   
   // Create bot with transformers
@@ -122,14 +123,21 @@ async function setupWebhook(bot) {
         }
       }
       
-      const redis = getRedisClient();
-      const redisPing = await redis.ping();
+      let redisStatus = 'disconnected';
+      try {
+        const redis = getRedisClient();
+        const redisPing = await redis.ping();
+        redisStatus = redisPing === 'PONG' ? 'connected' : 'error';
+      } catch (error) {
+        redisStatus = 'disconnected';
+      }
+      
       const userCount = await getUserCount();
       
       res.json({
         status: 'ok',
         uptime: process.uptime(),
-        redis: redisPing === 'PONG' ? 'connected' : 'error',
+        redis: redisStatus,
         users: userCount,
         memory: {
           heapUsed: process.memoryUsage().heapUsed,

@@ -1,6 +1,27 @@
 const Redis = require('ioredis');
 
 let client = null;
+let redisAvailable = false;
+let reconnectInterval = null;
+let lastStatsCleanup = 0; // Track last cleanup timestamp
+
+// In-memory fallback storage
+const inMemoryStorage = {
+  users: new Map(),        // user:chatId -> userData
+  usersSet: new Set(),     // users:all
+  regionSets: new Map(),   // users:region:X -> Set of chatIds
+  queueSets: new Map(),    // users:region:X:queue:Y -> Set of chatIds
+  states: new Map(),       // state:type:chatId -> stateData
+  settings: new Map(),     // settings:key -> value
+  channels: new Map(),     // channel:channelId -> channelData
+  channelsSet: new Set(),  // channels:all
+  userChannels: new Map(), // user:chatId:channels -> Set of channelIds
+  cache: new Map(),        // cache:key -> { value, expiresAt }
+  rateLimit: new Map(),    // capacity:key -> { count, expiresAt }
+  stats: new Map(),        // stats:daily:date -> { field: count }
+  totalStats: new Map(),   // stats:total -> { field: count }
+  ipMonitoring: new Set(), // ip:monitoring:active
+};
 
 function getRedisClient() {
   if (!client) {
@@ -21,15 +42,64 @@ function getRedisClient() {
     });
 
     client.on('connect', () => console.log('✅ Redis підключено'));
-    client.on('error', (err) => console.error('❌ Redis помилка:', err.message));
+    client.on('ready', () => {
+      console.log('✅ Redis готовий до роботи');
+      redisAvailable = true;
+      if (reconnectInterval) {
+        clearInterval(reconnectInterval);
+        reconnectInterval = null;
+      }
+    });
+    client.on('error', (err) => {
+      console.error('❌ Redis помилка:', err.message);
+      redisAvailable = false;
+      startReconnectLoop();
+    });
+    client.on('close', () => {
+      console.warn('⚠️  Redis з\'єднання закрито');
+      redisAvailable = false;
+      startReconnectLoop();
+    });
     client.on('reconnecting', () => console.log('🔄 Redis перепідключення...'));
   }
   return client;
 }
 
+function startReconnectLoop() {
+  // Don't start if already running OR if Redis is already available
+  if (reconnectInterval || redisAvailable) return;
+  
+  reconnectInterval = setInterval(() => {
+    // Stop trying if Redis is available
+    if (redisAvailable) {
+      clearInterval(reconnectInterval);
+      reconnectInterval = null;
+      console.log('✅ Redis reconnection loop stopped (Redis available)');
+      return;
+    }
+    
+    if (client && client.status !== 'connecting' && client.status !== 'ready') {
+      console.log('🔄 Спроба перепідключення до Redis...');
+      client.connect().catch(err => {
+        console.error('❌ Не вдалося перепідключитись до Redis:', err.message);
+      });
+    }
+  }, 30000); // Try every 30 seconds
+}
+
+function isRedisAvailable() {
+  return redisAvailable;
+}
+
 // === USER OPERATIONS ===
 
 async function getUser(chatId) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const userData = inMemoryStorage.users.get(String(chatId));
+    return userData || null;
+  }
+  
   try {
     const data = await client.hgetall(`user:${chatId}`);
     if (!data || Object.keys(data).length === 0) {
@@ -51,6 +121,38 @@ async function getUser(chatId) {
 }
 
 async function saveUser(chatId, userData) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const dataToStore = {
+      ...userData,
+      chatId: parseInt(chatId, 10),
+      isActive: userData.isActive !== false,
+      updatedAt: Date.now(),
+      createdAt: userData.createdAt || Date.now(),
+    };
+    
+    inMemoryStorage.users.set(String(chatId), dataToStore);
+    inMemoryStorage.usersSet.add(String(chatId));
+    
+    if (userData.region) {
+      const regionKey = `users:region:${userData.region}`;
+      if (!inMemoryStorage.regionSets.has(regionKey)) {
+        inMemoryStorage.regionSets.set(regionKey, new Set());
+      }
+      inMemoryStorage.regionSets.get(regionKey).add(String(chatId));
+      
+      if (userData.queue) {
+        const queueKey = `users:region:${userData.region}:queue:${userData.queue}`;
+        if (!inMemoryStorage.queueSets.has(queueKey)) {
+          inMemoryStorage.queueSets.set(queueKey, new Set());
+        }
+        inMemoryStorage.queueSets.get(queueKey).add(String(chatId));
+      }
+    }
+    
+    return true;
+  }
+  
   try {
     const pipeline = client.pipeline();
     
@@ -87,6 +189,39 @@ async function saveUser(chatId, userData) {
 }
 
 async function updateUser(chatId, fields) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const user = inMemoryStorage.users.get(String(chatId));
+    if (user) {
+      const updatedUser = {
+        ...user,
+        ...fields,
+        updatedAt: Date.now(),
+      };
+      inMemoryStorage.users.set(String(chatId), updatedUser);
+      
+      // Update region sets if region or queue changed
+      if (fields.region) {
+        const regionKey = `users:region:${fields.region}`;
+        if (!inMemoryStorage.regionSets.has(regionKey)) {
+          inMemoryStorage.regionSets.set(regionKey, new Set());
+        }
+        inMemoryStorage.regionSets.get(regionKey).add(String(chatId));
+      }
+      
+      if (fields.queue && updatedUser.region) {
+        const queueKey = `users:region:${updatedUser.region}:queue:${fields.queue}`;
+        if (!inMemoryStorage.queueSets.has(queueKey)) {
+          inMemoryStorage.queueSets.set(queueKey, new Set());
+        }
+        inMemoryStorage.queueSets.get(queueKey).add(String(chatId));
+      }
+      
+      return true;
+    }
+    return false;
+  }
+  
   try {
     const fieldsToStore = {
       ...fields,
@@ -126,6 +261,32 @@ async function updateUser(chatId, fields) {
 }
 
 async function deleteUser(chatId) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const user = inMemoryStorage.users.get(String(chatId));
+    
+    inMemoryStorage.users.delete(String(chatId));
+    inMemoryStorage.usersSet.delete(String(chatId));
+    
+    if (user && user.region) {
+      const regionKey = `users:region:${user.region}`;
+      if (inMemoryStorage.regionSets.has(regionKey)) {
+        inMemoryStorage.regionSets.get(regionKey).delete(String(chatId));
+      }
+      
+      if (user.queue) {
+        const queueKey = `users:region:${user.region}:queue:${user.queue}`;
+        if (inMemoryStorage.queueSets.has(queueKey)) {
+          inMemoryStorage.queueSets.get(queueKey).delete(String(chatId));
+        }
+      }
+    }
+    
+    inMemoryStorage.ipMonitoring.delete(String(chatId));
+    
+    return true;
+  }
+  
   try {
     const user = await getUser(chatId);
     const pipeline = client.pipeline();
@@ -159,6 +320,11 @@ async function deleteUser(chatId) {
 }
 
 async function getUserCount() {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    return inMemoryStorage.usersSet.size;
+  }
+  
   try {
     return await client.scard('users:all');
   } catch (error) {
@@ -168,6 +334,11 @@ async function getUserCount() {
 }
 
 async function getAllUserIds() {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    return Array.from(inMemoryStorage.usersSet).map(id => parseInt(id, 10));
+  }
+  
   try {
     const members = await client.smembers('users:all');
     return members.map(id => parseInt(id, 10));
@@ -178,6 +349,13 @@ async function getAllUserIds() {
 }
 
 async function getUsersByRegion(region) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const regionKey = `users:region:${region}`;
+    const regionSet = inMemoryStorage.regionSets.get(regionKey);
+    return regionSet ? Array.from(regionSet).map(id => parseInt(id, 10)) : [];
+  }
+  
   try {
     const members = await client.smembers(`users:region:${region}`);
     return members.map(id => parseInt(id, 10));
@@ -188,6 +366,13 @@ async function getUsersByRegion(region) {
 }
 
 async function getUsersByRegionAndQueue(region, queue) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const queueKey = `users:region:${region}:queue:${queue}`;
+    const queueSet = inMemoryStorage.queueSets.get(queueKey);
+    return queueSet ? Array.from(queueSet).map(id => parseInt(id, 10)) : [];
+  }
+  
   try {
     const members = await client.smembers(`users:region:${region}:queue:${queue}`);
     return members.map(id => parseInt(id, 10));
@@ -198,6 +383,15 @@ async function getUsersByRegionAndQueue(region, queue) {
 }
 
 async function getUserByChannelId(channelId) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const channelData = inMemoryStorage.channels.get(String(channelId));
+    if (!channelData || !channelData.chatId) {
+      return null;
+    }
+    return inMemoryStorage.users.get(String(channelData.chatId)) || null;
+  }
+  
   try {
     const channelData = await client.hgetall(`channel:${channelId}`);
     if (!channelData || !channelData.chatId) {
@@ -213,6 +407,16 @@ async function getUserByChannelId(channelId) {
 // === STATE OPERATIONS (with TTL!) ===
 
 async function saveState(type, chatId, data, ttlSeconds = 86400) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const key = `state:${type}:${chatId}`;
+    inMemoryStorage.states.set(key, {
+      data,
+      expiresAt: Date.now() + (ttlSeconds * 1000),
+    });
+    return true;
+  }
+  
   try {
     const key = `state:${type}:${chatId}`;
     const pipeline = client.pipeline();
@@ -235,6 +439,21 @@ async function saveState(type, chatId, data, ttlSeconds = 86400) {
 }
 
 async function getState(type, chatId) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const key = `state:${type}:${chatId}`;
+    const entry = inMemoryStorage.states.get(key);
+    if (!entry) return null;
+    
+    // Check if expired
+    if (Date.now() > entry.expiresAt) {
+      inMemoryStorage.states.delete(key);
+      return null;
+    }
+    
+    return entry.data;
+  }
+  
   try {
     const key = `state:${type}:${chatId}`;
     const data = await client.hgetall(key);
@@ -261,6 +480,13 @@ async function getState(type, chatId) {
 }
 
 async function deleteState(type, chatId) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const key = `state:${type}:${chatId}`;
+    inMemoryStorage.states.delete(key);
+    return true;
+  }
+  
   try {
     const key = `state:${type}:${chatId}`;
     await client.del(key);
@@ -272,6 +498,21 @@ async function deleteState(type, chatId) {
 }
 
 async function hasState(type, chatId) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const key = `state:${type}:${chatId}`;
+    const entry = inMemoryStorage.states.get(key);
+    if (!entry) return false;
+    
+    // Check if expired
+    if (Date.now() > entry.expiresAt) {
+      inMemoryStorage.states.delete(key);
+      return false;
+    }
+    
+    return true;
+  }
+  
   try {
     const key = `state:${type}:${chatId}`;
     const exists = await client.exists(key);
@@ -285,6 +526,12 @@ async function hasState(type, chatId) {
 // === SETTINGS ===
 
 async function getSetting(key, defaultValue = null) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const value = inMemoryStorage.settings.get(key);
+    return value !== undefined ? value : defaultValue;
+  }
+  
   try {
     const value = await client.get(`settings:${key}`);
     return value !== null ? value : defaultValue;
@@ -295,6 +542,12 @@ async function getSetting(key, defaultValue = null) {
 }
 
 async function setSetting(key, value) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    inMemoryStorage.settings.set(key, String(value));
+    return true;
+  }
+  
   try {
     await client.set(`settings:${key}`, String(value));
     return true;
@@ -307,6 +560,31 @@ async function setSetting(key, value) {
 // === CHANNEL OPERATIONS ===
 
 async function saveChannel(channelId, data) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const dataToStore = {
+      ...data,
+      channelId: parseInt(channelId, 10),
+      chatId: parseInt(data.chatId, 10),
+      status: data.status || 'active',
+      updatedAt: Date.now(),
+      createdAt: data.createdAt || Date.now(),
+    };
+    
+    inMemoryStorage.channels.set(String(channelId), dataToStore);
+    inMemoryStorage.channelsSet.add(String(channelId));
+    
+    if (data.chatId) {
+      const userChannelsKey = String(data.chatId);
+      if (!inMemoryStorage.userChannels.has(userChannelsKey)) {
+        inMemoryStorage.userChannels.set(userChannelsKey, new Set());
+      }
+      inMemoryStorage.userChannels.get(userChannelsKey).add(String(channelId));
+    }
+    
+    return true;
+  }
+  
   try {
     const pipeline = client.pipeline();
     
@@ -335,6 +613,12 @@ async function saveChannel(channelId, data) {
 }
 
 async function getChannel(channelId) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const channelData = inMemoryStorage.channels.get(String(channelId));
+    return channelData || null;
+  }
+  
   try {
     const data = await client.hgetall(`channel:${channelId}`);
     if (!data || Object.keys(data).length === 0) {
@@ -355,6 +639,23 @@ async function getChannel(channelId) {
 }
 
 async function deleteChannel(channelId) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const channel = inMemoryStorage.channels.get(String(channelId));
+    
+    inMemoryStorage.channels.delete(String(channelId));
+    inMemoryStorage.channelsSet.delete(String(channelId));
+    
+    if (channel && channel.chatId) {
+      const userChannelsKey = String(channel.chatId);
+      if (inMemoryStorage.userChannels.has(userChannelsKey)) {
+        inMemoryStorage.userChannels.get(userChannelsKey).delete(String(channelId));
+      }
+    }
+    
+    return true;
+  }
+  
   try {
     const channel = await getChannel(channelId);
     const pipeline = client.pipeline();
@@ -375,6 +676,11 @@ async function deleteChannel(channelId) {
 }
 
 async function getAllChannelIds() {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    return Array.from(inMemoryStorage.channelsSet).map(id => parseInt(id, 10));
+  }
+  
   try {
     const members = await client.smembers('channels:all');
     return members.map(id => parseInt(id, 10));
@@ -387,6 +693,15 @@ async function getAllChannelIds() {
 // === CACHE ===
 
 async function setCache(key, value, ttlSeconds = 300) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    inMemoryStorage.cache.set(key, {
+      value,
+      expiresAt: Date.now() + (ttlSeconds * 1000),
+    });
+    return true;
+  }
+  
   try {
     const fullKey = `cache:${key}`;
     await client.setex(fullKey, ttlSeconds, JSON.stringify(value));
@@ -398,6 +713,20 @@ async function setCache(key, value, ttlSeconds = 300) {
 }
 
 async function getCache(key) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const entry = inMemoryStorage.cache.get(key);
+    if (!entry) return null;
+    
+    // Check if expired
+    if (Date.now() > entry.expiresAt) {
+      inMemoryStorage.cache.delete(key);
+      return null;
+    }
+    
+    return entry.value;
+  }
+  
   try {
     const fullKey = `cache:${key}`;
     const value = await client.get(fullKey);
@@ -411,6 +740,23 @@ async function getCache(key) {
 // === RATE LIMITING ===
 
 async function incrementRateLimit(key, ttlSeconds = 60) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const entry = inMemoryStorage.rateLimit.get(key);
+    const now = Date.now();
+    
+    if (!entry || now > entry.expiresAt) {
+      inMemoryStorage.rateLimit.set(key, {
+        count: 1,
+        expiresAt: now + (ttlSeconds * 1000),
+      });
+      return 1;
+    }
+    
+    entry.count++;
+    return entry.count;
+  }
+  
   try {
     const fullKey = `capacity:${key}`;
     const pipeline = client.pipeline();
@@ -427,6 +773,20 @@ async function incrementRateLimit(key, ttlSeconds = 60) {
 }
 
 async function getRateLimit(key) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const entry = inMemoryStorage.rateLimit.get(key);
+    if (!entry) return 0;
+    
+    // Check if expired
+    if (Date.now() > entry.expiresAt) {
+      inMemoryStorage.rateLimit.delete(key);
+      return 0;
+    }
+    
+    return entry.count;
+  }
+  
   try {
     const fullKey = `capacity:${key}`;
     const value = await client.get(fullKey);
@@ -440,6 +800,37 @@ async function getRateLimit(key) {
 // === STATISTICS ===
 
 async function incrementStat(field, count = 1) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Update daily stats
+    const dailyStats = inMemoryStorage.stats.get(today) || {};
+    dailyStats[field] = (dailyStats[field] || 0) + count;
+    inMemoryStorage.stats.set(today, dailyStats);
+    
+    // Also update total stats for consistency
+    const currentTotal = inMemoryStorage.totalStats.get(field) || 0;
+    inMemoryStorage.totalStats.set(field, currentTotal + count);
+    
+    // Clean up old daily stats (keep only last 7 days to prevent memory leak)
+    // Only run cleanup once per day to avoid unnecessary processing
+    const now = Date.now();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+    if (inMemoryStorage.stats.size > 7 && (now - lastStatsCleanup) > oneDayMs) {
+      const dates = Array.from(inMemoryStorage.stats.keys()).sort();
+      const oldestToKeep = dates[dates.length - 7];
+      for (const date of dates) {
+        if (date < oldestToKeep) {
+          inMemoryStorage.stats.delete(date);
+        }
+      }
+      lastStatsCleanup = now;
+    }
+    
+    return true;
+  }
+  
   try {
     const today = new Date().toISOString().split('T')[0];
     await client.hincrby(`stats:daily:${today}`, field, count);
@@ -451,6 +842,15 @@ async function incrementStat(field, count = 1) {
 }
 
 async function getStats() {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const stats = {};
+    for (const [field, value] of inMemoryStorage.totalStats.entries()) {
+      stats[field] = value;
+    }
+    return stats;
+  }
+  
   try {
     const data = await client.hgetall('stats:total');
     if (!data || Object.keys(data).length === 0) {
@@ -471,6 +871,12 @@ async function getStats() {
 }
 
 async function getDailyStats(date) {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const dailyStats = inMemoryStorage.stats.get(date);
+    return dailyStats || {};
+  }
+  
   try {
     const data = await client.hgetall(`stats:daily:${date}`);
     if (!data || Object.keys(data).length === 0) {
@@ -493,6 +899,11 @@ async function getDailyStats(date) {
 // === GRACEFUL SHUTDOWN ===
 
 async function closeRedis() {
+  if (reconnectInterval) {
+    clearInterval(reconnectInterval);
+    reconnectInterval = null;
+  }
+  
   if (client) {
     try {
       await client.quit();
@@ -501,11 +912,13 @@ async function closeRedis() {
       console.error('Error closing Redis:', error);
     }
     client = null;
+    redisAvailable = false;
   }
 }
 
 module.exports = {
   getRedisClient,
+  isRedisAvailable,
   getUser,
   saveUser,
   updateUser,
