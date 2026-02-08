@@ -9,12 +9,46 @@ function formatMainMenu(user) {
   const regionName = user.region ? REGIONS[user.region]?.name || user.region : 'не вказано';
   const queue = user.queue || 'не вказано';
   
-  return `🏠 <b>Головне меню</b>
+  // Channel status
+  let channelStatus;
+  if (user.channelId) {
+    let channelName;
+    if (user.channel_title) {
+      // Don't add @ if it already starts with @
+      channelName = user.channel_title.startsWith('@') ? user.channel_title : `@${user.channel_title}`;
+    } else {
+      channelName = `ID: ${user.channelId}`;
+    }
+    channelStatus = `${escapeHtml(channelName)} ✅`;
+  } else {
+    channelStatus = 'не підключено ❌';
+  }
+  
+  // IP status
+  let ipStatus;
+  if (user.ipHost) {
+    ipStatus = `${escapeHtml(user.ipHost)} ✅`;
+  } else {
+    ipStatus = 'не підключена ❌';
+  }
+  
+  // Alerts status (default to enabled if not set)
+  const alertsEnabled = user.alertsEnabled !== false;
+  const alertsStatus = alertsEnabled ? 'увімкнено ✅' : 'вимкнено ❌';
+  
+  return `🚧 <b>Бот у розробці</b>
+Деякі функції можуть працювати нестабільно.
 
-👤 Ваш регіон: <b>${escapeHtml(regionName)}</b>
-⚡️ Ваша черга: <b>${queue}</b>
+💬 Маєте ідеї або знайшли помилку?
+❓ Допомога → Обговорення / Підтримка
 
-Оберіть дію:`;
+──────────────
+🏠 <b>Головне меню</b>
+
+📍 Регіон: <b>${escapeHtml(regionName)}</b> • <b>${queue}</b>
+📺 Канал: ${channelStatus}
+📡 IP-адреса: ${ipStatus}
+🔔 Сповіщення: ${alertsStatus}`;
 }
 
 /**
