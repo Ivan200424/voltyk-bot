@@ -896,6 +896,40 @@ async function getDailyStats(date) {
   }
 }
 
+// === GET ALL ACTIVE USERS ===
+
+async function getAllActiveUsers() {
+  // Use in-memory fallback if Redis is unavailable
+  if (!redisAvailable) {
+    const users = [];
+    for (const [chatId, userData] of inMemoryStorage.users.entries()) {
+      if (userData.isActive !== false) {
+        users.push(userData);
+      }
+    }
+    return users;
+  }
+  
+  try {
+    // Get all user IDs from the set
+    const userIds = await getAllUserIds();
+    
+    // Fetch each user and filter active ones
+    const users = [];
+    for (const chatId of userIds) {
+      const user = await getUser(chatId);
+      if (user && user.isActive !== false) {
+        users.push(user);
+      }
+    }
+    
+    return users;
+  } catch (error) {
+    console.error('Error getting all active users:', error);
+    return [];
+  }
+}
+
 // === GRACEFUL SHUTDOWN ===
 
 async function closeRedis() {
@@ -925,6 +959,7 @@ module.exports = {
   deleteUser,
   getUserCount,
   getAllUserIds,
+  getAllActiveUsers,
   getUsersByRegion,
   getUsersByRegionAndQueue,
   getUserByChannelId,
