@@ -7,6 +7,7 @@ const DAYS_OF_WEEK = [
 ];
 
 const CACHE_TTL = 60; // Cache TTL in seconds
+const KYIV_UTC_OFFSET_MS = 2 * 60 * 60 * 1000; // Kyiv timezone offset: UTC+2 (no DST)
 
 /**
  * Generate hash from schedule content
@@ -107,7 +108,7 @@ function parseIntervalsFromHourlyData(hourlyData) {
 function getKyivDate() {
   const now = new Date();
   // Shift to Kyiv time (UTC+2) to get the correct date
-  const kyivTime = new Date(now.getTime() + (2 * 60 * 60 * 1000));
+  const kyivTime = new Date(now.getTime() + KYIV_UTC_OFFSET_MS);
   // Return a date object representing the Kyiv date at midnight UTC
   return new Date(Date.UTC(kyivTime.getUTCFullYear(), kyivTime.getUTCMonth(), kyivTime.getUTCDate()));
 }
@@ -123,7 +124,7 @@ function getDateTimestamp(date) {
   const day = date.getDate();
   // Get timestamp for 22:00 UTC (midnight Kyiv time) of the date
   const utcMidnight = Date.UTC(year, month, day, 0, 0, 0, 0);
-  const kyivMidnight = utcMidnight - (2 * 60 * 60 * 1000); // Subtract 2 hours
+  const kyivMidnight = utcMidnight - KYIV_UTC_OFFSET_MS; // Subtract UTC+2 offset
   return Math.floor(kyivMidnight / 1000);
 }
 
