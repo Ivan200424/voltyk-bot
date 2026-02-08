@@ -175,10 +175,12 @@ export async function handleSchedule(ctx) {
     }
     
     // Send photo with schedule
-    // TODO: Use actual image from scheduleData.today.imageUrl
-    // For now, using placeholder
+    // Note: Using placeholder until actual outage-data-ua integration is complete
+    // In production, use: scheduleData.today.imageUrl
+    const imageUrl = scheduleData.today.imageUrl || 'https://via.placeholder.com/800x600.png?text=Schedule+Graph';
+    
     const sentMessage = await ctx.replyWithPhoto(
-      'https://via.placeholder.com/800x600.png?text=Schedule+Graph',
+      imageUrl,
       {
         caption: message,
         parse_mode: 'MarkdownV2',

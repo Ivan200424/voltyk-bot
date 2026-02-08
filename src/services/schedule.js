@@ -61,12 +61,22 @@ function calculateTotalHours(intervals) {
 
 /**
  * Fetch schedule data from outage-data-ua repository
- * This is a mock implementation - in production, fetch from actual GitHub repo
+ * 
+ * TODO: Replace with actual fetch from https://github.com/Baskerville42/outage-data-ua
+ * 
+ * Implementation steps:
+ * 1. Use GitHub raw URL or API to fetch JSON files
+ *    Example: https://raw.githubusercontent.com/Baskerville42/outage-data-ua/main/data/{region}/{queue}/{date}.json
+ * 2. Parse JSON to extract time intervals for the queue
+ * 3. Fetch corresponding image URL for the schedule
+ *    Example: https://raw.githubusercontent.com/Baskerville42/outage-data-ua/main/images/{region}/{date}.png
+ * 4. Return structured data with intervals and imageUrl
+ * 5. Handle cases where data is not available (return null)
+ * 6. Implement retry logic with exponential backoff for network failures
+ * 
+ * For now, return mock data structure to test the full logic
  */
 async function fetchScheduleFromRepo(region, queue, date) {
-  // TODO: Replace with actual fetch from https://github.com/Baskerville42/outage-data-ua
-  // For now, return mock data structure
-  
   // Mock data - simulating JSON structure from outage-data-ua
   const mockSchedule = {
     region,
@@ -77,7 +87,7 @@ async function fetchScheduleFromRepo(region, queue, date) {
       '06:30 - 13:30',
       '17:00 - 00:00'
     ],
-    imageUrl: 'https://example.com/schedule.jpg' // Placeholder
+    imageUrl: 'https://via.placeholder.com/800x600.png?text=Schedule+Graph' // Placeholder
   };
   
   return mockSchedule;
