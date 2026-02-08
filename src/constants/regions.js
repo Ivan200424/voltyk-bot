@@ -9,7 +9,7 @@ const REGIONS = {
   zaporizhzhia: { name: 'Запорізька область', code: 'zaporizhzhia' },
   vinnytsia: { name: 'Вінницька область', code: 'vinnytsia' },
   zhytomyr: { name: 'Житомирська область', code: 'zhytomyr' },
-  ivano-frankivsk: { name: 'Івано-Франківська область', code: 'ivano-frankivsk' },
+  'ivano-frankivsk': { name: 'Івано-Франківська область', code: 'ivano-frankivsk' },
   kirovohrad: { name: 'Кіровоградська область', code: 'kirovohrad' },
   luhansk: { name: 'Луганська область', code: 'luhansk' },
   mykolaiv: { name: 'Миколаївська область', code: 'mykolaiv' },
