@@ -1,6 +1,11 @@
 const { REGIONS } = require('./constants/regions');
 const { escapeHtml, formatNumber } = require('./utils');
 const { formatDuration } = require('./parser');
+const { formatDateUkrainian, isToday, isTomorrow } = require('./utils/dateHelpers');
+
+// Constants
+const MS_PER_HOUR = 1000 * 60 * 60;
+const MS_PER_MINUTE = 1000 * 60;
 
 /**
  * Format main menu message
@@ -67,39 +72,87 @@ function formatWelcomeMessage() {
  * queueData: output from parseScheduleForQueue with events array
  */
 function formatScheduleMessage(queueData, region, queue) {
-  const regionName = REGIONS[region]?.name || region;
-  let message = `📊 <b>Графік відключень</b>\n\n`;
-  message += `🌍 Регіон: <b>${escapeHtml(regionName)}</b>\n`;
-  message += `⚡️ Черга: <b>${queue}</b>\n\n`;
-  
   if (!queueData || !queueData.hasData || !queueData.events || queueData.events.length === 0) {
-    message += `✅ На даний момент відключень не заплановано.`;
-    return message;
+    return `✅ На даний момент відключень не заплановано.`;
   }
   
-  // Separate planned and possible outages
-  const plannedEvents = queueData.events.filter(e => !e.isPossible);
-  const possibleEvents = queueData.events.filter(e => e.isPossible);
+  // Separate events by day
+  const todayEvents = queueData.events.filter(e => isToday(e.start));
+  const tomorrowEvents = queueData.events.filter(e => isTomorrow(e.start));
   
-  // Show planned outages
-  if (plannedEvents.length > 0) {
-    message += `<b>Заплановані відключення:</b>\n\n`;
+  let message = '';
+  
+  // Format today's schedule
+  if (todayEvents.length > 0) {
+    const todayDate = new Date();
+    const dateStr = formatDateUkrainian(todayDate);
+    message += `💡 Графік відключень на сьогодні, ${escapeHtml(dateStr)}, для черги ${escapeHtml(queue)}:\n\n`;
     
-    plannedEvents.forEach((event, index) => {
-      message += `${index + 1}. 🔴 ${formatDateTime(event.start)} - ${formatTime(event.end)}\n`;
+    let todayTotalMinutes = 0;
+    todayEvents.forEach((event) => {
+      const start = new Date(event.start);
+      const end = new Date(event.end);
+      
+      const startTime = start.toLocaleTimeString('uk-UA', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Kyiv',
+      });
+      
+      const endTime = end.toLocaleTimeString('uk-UA', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Kyiv',
+      });
+      
+      const durationMs = end.getTime() - start.getTime();
+      const durationHours = Math.round(durationMs / MS_PER_HOUR);
+      todayTotalMinutes += durationMs / MS_PER_MINUTE;
+      
+      message += `🪫 ${startTime} - ${endTime} (~${durationHours} год)\n`;
     });
+    
+    const todayTotalHours = Math.round(todayTotalMinutes / 60);
+    message += `\nЗагалом без світла: ~${todayTotalHours} год`;
   }
   
-  // Show possible outages
-  if (possibleEvents.length > 0) {
-    if (plannedEvents.length > 0) {
-      message += `\n`;
+  // Format tomorrow's schedule
+  if (tomorrowEvents.length > 0) {
+    if (todayEvents.length > 0) {
+      message += `\n\n`;
     }
-    message += `<b>Можливі відключення:</b>\n\n`;
     
-    possibleEvents.forEach((event, index) => {
-      message += `${index + 1}. ⚠️ ${formatDateTime(event.start)} - ${formatTime(event.end)}\n`;
+    const tomorrowDate = new Date();
+    tomorrowDate.setDate(tomorrowDate.getDate() + 1);
+    const dateStr = formatDateUkrainian(tomorrowDate);
+    message += `💡 Графік відключень на завтра, ${escapeHtml(dateStr)}, для черги ${escapeHtml(queue)}:\n\n`;
+    
+    let tomorrowTotalMinutes = 0;
+    tomorrowEvents.forEach((event) => {
+      const start = new Date(event.start);
+      const end = new Date(event.end);
+      
+      const startTime = start.toLocaleTimeString('uk-UA', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Kyiv',
+      });
+      
+      const endTime = end.toLocaleTimeString('uk-UA', {
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Europe/Kyiv',
+      });
+      
+      const durationMs = end.getTime() - start.getTime();
+      const durationHours = Math.round(durationMs / MS_PER_HOUR);
+      tomorrowTotalMinutes += durationMs / MS_PER_MINUTE;
+      
+      message += `🪫 ${startTime} - ${endTime} (~${durationHours} год)\n`;
     });
+    
+    const tomorrowTotalHours = Math.round(tomorrowTotalMinutes / 60);
+    message += `\nЗагалом без світла: ~${tomorrowTotalHours} год`;
   }
   
   return message;

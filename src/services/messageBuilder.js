@@ -4,6 +4,10 @@ const { createLogger } = require('../utils/logger');
 
 const logger = createLogger('MessageBuilder');
 
+// Constants
+const MS_PER_HOUR = 1000 * 60 * 60;
+const MS_PER_MINUTE = 1000 * 60;
+
 /**
  * Format schedule events into a readable table
  * @param {Array} events - Schedule events
@@ -15,7 +19,9 @@ function formatScheduleEvents(events) {
   }
   
   let text = '';
-  events.forEach((event, index) => {
+  let totalMinutes = 0;
+  
+  events.forEach((event) => {
     const start = new Date(event.start);
     const end = new Date(event.end);
     
@@ -31,10 +37,17 @@ function formatScheduleEvents(events) {
       timeZone: 'Europe/Kyiv',
     });
     
-    text += `${index + 1}. 🔴 ${startTime} - ${endTime}\n`;
+    const durationMs = end.getTime() - start.getTime();
+    const durationHours = Math.round(durationMs / MS_PER_HOUR);
+    totalMinutes += durationMs / MS_PER_MINUTE;
+    
+    text += `🪫 ${startTime} - ${endTime} (~${durationHours} год)\n`;
   });
   
-  return text.trim();
+  const totalHours = Math.round(totalMinutes / 60);
+  text += `\nЗагалом без світла: ~${totalHours} год`;
+  
+  return text;
 }
 
 /**
@@ -49,11 +62,18 @@ function buildMessage(headerText, queue, date, events) {
   const dateStr = formatDateUkrainian(date);
   const scheduleText = formatScheduleEvents(events);
   
-  return `${headerText}, ${escapeHtml(dateStr)}, для черги ${escapeHtml(queue)}:
+  return `${headerText}, ${escapeHtml(dateStr)}, для черги ${escapeHtml(queue)}:\n\n${scheduleText}`;
+}
 
-${scheduleText}
-
-⚡️ @voltyk_bot`;
+/**
+ * Build secondary block without date/queue (for "без змін" / "Оновлено графік на сьогодні")
+ * @param {string} headerText - Header text
+ * @param {Array} events - Schedule events
+ * @returns {string} Complete message
+ */
+function buildSecondaryBlock(headerText, events) {
+  const scheduleText = formatScheduleEvents(events);
+  return `${headerText}:\n\n${scheduleText}`;
 }
 
 /**
@@ -94,95 +114,80 @@ function buildScenario2Message(queue, todayDate, todayEvents) {
 
 /**
  * Scenario 3: Tomorrow schedule appeared, today unchanged
- * Returns two messages: tomorrow (first), then today (second)
+ * Returns single combined message with two blocks
  * @param {string} queue - Queue number
  * @param {Date} todayDate - Today's date
  * @param {Date} tomorrowDate - Tomorrow's date
  * @param {Array} todayEvents - Today's events
  * @param {Array} tomorrowEvents - Tomorrow's events
- * @returns {Array} Array of two message objects
+ * @returns {Array} Array with single message object
  */
 function buildScenario3Messages(queue, todayDate, tomorrowDate, todayEvents, tomorrowEvents) {
-  const message1 = buildMessage(
-    '💡 З\'явився графік відключень на завтра',
+  const primary = buildMessage(
+    '💡 Зʼявився графік відключень на завтра',
     queue,
     tomorrowDate,
     tomorrowEvents
   );
   
-  const message2 = buildMessage(
+  const secondary = buildSecondaryBlock(
     '💡 Графік на сьогодні без змін',
-    queue,
-    todayDate,
     todayEvents
   );
   
-  return [
-    { text: message1 },
-    { text: message2 },
-  ];
+  return [{ text: `${primary}\n\n${secondary}` }];
 }
 
 /**
  * Scenario 4: Tomorrow appeared AND today updated
- * Returns two messages: today (first), then tomorrow (second)
+ * Returns single combined message with two blocks
  * @param {string} queue - Queue number
  * @param {Date} todayDate - Today's date
  * @param {Date} tomorrowDate - Tomorrow's date
  * @param {Array} todayEvents - Today's events
  * @param {Array} tomorrowEvents - Tomorrow's events
- * @returns {Array} Array of two message objects
+ * @returns {Array} Array with single message object
  */
 function buildScenario4Messages(queue, todayDate, tomorrowDate, todayEvents, tomorrowEvents) {
-  const message1 = buildMessage(
-    '💡 Оновлено графік відключень на сьогодні',
-    queue,
-    todayDate,
-    todayEvents
-  );
-  
-  const message2 = buildMessage(
-    '💡 З\'явився графік відключень на завтра',
+  const primary = buildMessage(
+    '💡 Зʼявився графік відключень на завтра',
     queue,
     tomorrowDate,
     tomorrowEvents
   );
   
-  return [
-    { text: message1 },
-    { text: message2 },
-  ];
+  const secondary = buildSecondaryBlock(
+    '💡 Оновлено графік на сьогодні',
+    todayEvents
+  );
+  
+  return [{ text: `${primary}\n\n${secondary}` }];
 }
 
 /**
  * Scenario 5: Tomorrow updated, today unchanged
- * Returns two messages: tomorrow (first), then today (second)
+ * Returns single combined message with two blocks
  * @param {string} queue - Queue number
  * @param {Date} todayDate - Today's date
  * @param {Date} tomorrowDate - Tomorrow's date
  * @param {Array} todayEvents - Today's events
  * @param {Array} tomorrowEvents - Tomorrow's events
- * @returns {Array} Array of two message objects
+ * @returns {Array} Array with single message object
  */
 function buildScenario5Messages(queue, todayDate, tomorrowDate, todayEvents, tomorrowEvents) {
-  const message1 = buildMessage(
-    '💡 Оновлено графік на завтра',
+  const primary = buildMessage(
+    '💡 Оновлено графік відключень на завтра',
     queue,
     tomorrowDate,
     tomorrowEvents
   );
   
-  const message2 = buildMessage(
+  const secondary = buildSecondaryBlock(
     '💡 Графік на сьогодні без змін',
-    queue,
-    todayDate,
     todayEvents
   );
   
-  return [
-    { text: message1 },
-    { text: message2 },
-  ];
+  return [{ text: `${primary}\n\n${secondary}` }];
 }
 
 /**
@@ -249,6 +254,7 @@ function buildMessagesForChanges(params) {
 module.exports = {
   formatScheduleEvents,
   buildMessage,
+  buildSecondaryBlock,
   buildScenario1Message,
   buildScenario2Message,
   buildScenario3Messages,
