@@ -1,6 +1,6 @@
 const { getUser } = require('../database/redis');
 const { fetchScheduleData } = require('../api');
-const { parseScheduleData, getQueueSchedule, getCurrentStatus } = require('../parser');
+const { parseScheduleForQueue, getCurrentStatus } = require('../parser');
 const { formatScheduleMessage, formatTimerMessage, formatMainMenu } = require('../formatter');
 const { getMainMenu, getMenuKeyboard } = require('../keyboards/inline');
 const { safeAnswerCallback } = require('../utils/errorHandler');
@@ -48,7 +48,7 @@ async function handleSchedule(ctx) {
     return;
   }
   
-  const parsed = parseScheduleData(scheduleData);
+  const parsed = parseScheduleForQueue(scheduleData, user.queue);
   const message = formatScheduleMessage(parsed, user.region, user.queue);
   
   if (ctx.callbackQuery) {
@@ -106,9 +106,8 @@ async function handleTimer(ctx) {
     return;
   }
   
-  const parsed = parseScheduleData(scheduleData);
-  const queueSchedule = getQueueSchedule(parsed, user.queue);
-  const currentStatus = getCurrentStatus(queueSchedule);
+  const parsed = parseScheduleForQueue(scheduleData, user.queue);
+  const currentStatus = getCurrentStatus(parsed);
   
   const message = formatTimerMessage(currentStatus, user.queue);
   

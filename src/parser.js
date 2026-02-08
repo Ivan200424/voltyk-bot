@@ -3,55 +3,105 @@ const { createLogger } = require('./utils/logger');
 const logger = createLogger('Parser');
 
 /**
- * Parse schedule JSON data
+ * Parse schedule for a specific queue from real API format
+ * @param {Object} data - API response with fact.data structure
+ * @param {string} queue - Queue identifier (e.g., "1.1", "2.1")
+ * @returns {Object} Parsed schedule with events array
  */
-function parseScheduleData(data) {
+function parseScheduleForQueue(data, queue) {
   try {
-    if (!data || typeof data !== 'object') {
-      return null;
+    const queueKey = `GPV${queue}`;
+    
+    if (!data || !data.fact || !data.fact.data) {
+      logger.warn('Invalid API data format: missing fact.data');
+      return { queue, events: [], hasData: false };
     }
     
-    // Expected format: { schedules: [...], updated: timestamp }
-    if (!data.schedules || !Array.isArray(data.schedules)) {
-      logger.warn('Invalid schedule data format: missing schedules array');
-      return null;
+    const availableTimestamps = Object.keys(data.fact.data)
+      .map(Number)
+      .sort((a, b) => a - b);
+    
+    if (availableTimestamps.length === 0) {
+      logger.warn('No timestamps found in API data');
+      return { queue, events: [], hasData: false };
     }
     
-    return {
-      schedules: data.schedules,
-      updated: data.updated || Date.now(),
-      region: data.region || null,
-    };
+    // Find today's timestamp in Europe/Kyiv timezone
+    const now = new Date();
+    const kyivOffset = 2; // UTC+2 for Europe/Kyiv (simplified)
+    const kyivNow = new Date(now.getTime() + kyivOffset * 60 * 60 * 1000);
+    const todayStart = new Date(kyivNow);
+    todayStart.setUTCHours(0, 0, 0, 0);
+    const todayTimestamp = Math.floor(todayStart.getTime() / 1000);
+    
+    // Find closest matching timestamp (prefer most recent before or equal to today)
+    let bestTimestamp = availableTimestamps[availableTimestamps.length - 1];
+    for (const ts of availableTimestamps) {
+      if (ts <= todayTimestamp) {
+        bestTimestamp = ts;
+      }
+    }
+    
+    const dayData = data.fact.data[bestTimestamp];
+    if (!dayData || !dayData[queueKey]) {
+      logger.warn(`No data found for queue ${queueKey} at timestamp ${bestTimestamp}`);
+      return { queue, events: [], hasData: false };
+    }
+    
+    const hourlyData = dayData[queueKey];
+    const events = [];
+    let currentStatus = null;
+    let eventStart = null;
+    
+    // Parse hourly data and merge consecutive hours with same status
+    for (let hour = 1; hour <= 24; hour++) {
+      const status = hourlyData[String(hour)] || 'unknown';
+      
+      if (status !== currentStatus) {
+        // Close previous event if exists
+        if (currentStatus !== null) {
+          events.push({
+            start: eventStart,
+            end: new Date((bestTimestamp + (hour - 1) * 3600) * 1000),
+            status: currentStatus,
+            hourStart: eventStart.getUTCHours(),
+            hourEnd: hour - 1,
+          });
+        }
+        // Start new event
+        currentStatus = status;
+        eventStart = new Date((bestTimestamp + (hour - 1) * 3600) * 1000);
+      }
+    }
+    
+    // Close last event
+    if (currentStatus !== null) {
+      events.push({
+        start: eventStart,
+        end: new Date((bestTimestamp + 24 * 3600) * 1000),
+        status: currentStatus,
+        hourStart: eventStart.getUTCHours(),
+        hourEnd: 24,
+      });
+    }
+    
+    logger.debug(`Parsed ${events.length} events for queue ${queue}`);
+    return { queue, events, hasData: true, timestamp: bestTimestamp };
   } catch (error) {
-    logger.error('Error parsing schedule data:', error);
-    return null;
+    logger.error(`Error parsing schedule for queue ${queue}:`, error);
+    return { queue, events: [], hasData: false };
   }
 }
 
 /**
- * Get schedule for a specific queue
+ * Get current power status for a parsed schedule
+ * @param {Object} scheduleData - Parsed schedule from parseScheduleForQueue
+ * @returns {Object} Current status with isOutage, currentEvent, nextEvent
  */
-function getQueueSchedule(scheduleData, queue) {
+function getCurrentStatus(scheduleData) {
   try {
-    if (!scheduleData || !scheduleData.schedules) {
-      return null;
-    }
-    
-    const queueSchedule = scheduleData.schedules.find(s => s.queue === queue);
-    return queueSchedule || null;
-  } catch (error) {
-    logger.error(`Error getting schedule for queue ${queue}:`, error);
-    return null;
-  }
-}
-
-/**
- * Get current outage status for a queue
- */
-function getCurrentStatus(queueSchedule) {
-  try {
-    if (!queueSchedule || !queueSchedule.events) {
-      return { isOutage: false, nextEvent: null };
+    if (!scheduleData || !scheduleData.events || scheduleData.events.length === 0) {
+      return { isOutage: false, currentEvent: null, nextEvent: null };
     }
     
     const now = Date.now();
@@ -60,11 +110,11 @@ function getCurrentStatus(queueSchedule) {
     let currentEvent = null;
     let nextEvent = null;
     
-    for (const event of queueSchedule.events) {
+    for (const event of scheduleData.events) {
       const startTime = new Date(event.start).getTime();
       const endTime = new Date(event.end).getTime();
       
-      if (now >= startTime && now <= endTime) {
+      if (now >= startTime && now < endTime) {
         currentEvent = event;
       } else if (now < startTime) {
         if (!nextEvent || startTime < new Date(nextEvent.start).getTime()) {
@@ -73,30 +123,36 @@ function getCurrentStatus(queueSchedule) {
       }
     }
     
+    // Determine if current status is an outage (no power)
+    // "no" means power off, "yes" means power on, "maybe" is uncertain
+    const isOutage = currentEvent && currentEvent.status === 'no';
+    
     return {
-      isOutage: currentEvent !== null,
+      isOutage,
       currentEvent,
       nextEvent,
     };
   } catch (error) {
     logger.error('Error getting current status:', error);
-    return { isOutage: false, nextEvent: null };
+    return { isOutage: false, currentEvent: null, nextEvent: null };
   }
 }
 
 /**
- * Get time until next event
+ * Get time until next status change event
+ * @param {Object} scheduleData - Parsed schedule from parseScheduleForQueue
+ * @returns {number|null} Milliseconds until next event or null
  */
-function getTimeUntilNextEvent(queueSchedule) {
+function getTimeUntilNextEvent(scheduleData) {
   try {
-    const status = getCurrentStatus(queueSchedule);
+    const status = getCurrentStatus(scheduleData);
     
     if (status.currentEvent) {
-      // Currently in outage, time until it ends
+      // Currently in an event, time until it ends
       const endTime = new Date(status.currentEvent.end).getTime();
       return endTime - Date.now();
     } else if (status.nextEvent) {
-      // Time until next outage starts
+      // Time until next event starts
       const startTime = new Date(status.nextEvent.start).getTime();
       return startTime - Date.now();
     }
@@ -130,8 +186,7 @@ function formatDuration(milliseconds) {
 }
 
 module.exports = {
-  parseScheduleData,
-  getQueueSchedule,
+  parseScheduleForQueue,
   getCurrentStatus,
   getTimeUntilNextEvent,
   formatDuration,

@@ -3,7 +3,7 @@ const { createLogger } = require('./utils/logger');
 const { config, getIntervalSetting } = require('./config');
 const { getAllActiveUsers, getSetting } = require('./database/redis');
 const { fetchScheduleData } = require('./api');
-const { parseScheduleData, getQueueSchedule } = require('./parser');
+const { parseScheduleForQueue } = require('./parser');
 const { detectChange, storeHash, filterEventsByDate } = require('./services/scheduleHashService');
 const { buildMessagesForChanges } = require('./services/messageBuilder');
 const { publishToUser } = require('./publisher');
@@ -39,16 +39,16 @@ async function processUserSchedule(bot, user, scheduleData) {
     }
     
     // Parse schedule data
-    const parsed = parseScheduleData(scheduleData);
-    if (!parsed) {
-      logger.warn(`Failed to parse schedule for region ${user.region}`);
+    const parsed = parseScheduleForQueue(scheduleData, user.queue);
+    if (!parsed || !parsed.hasData) {
+      logger.warn(`Failed to parse schedule for region ${user.region}, queue ${user.queue}`);
       return results;
     }
     
-    // Get queue schedule
-    const queueSchedule = getQueueSchedule(parsed, user.queue);
-    if (!queueSchedule) {
-      logger.debug(`No schedule found for queue ${user.queue} in region ${user.region}`);
+    // Get queue events
+    const queueEvents = parsed.events || [];
+    if (queueEvents.length === 0) {
+      logger.debug(`No events found for queue ${user.queue} in region ${user.region}`);
       return results;
     }
     
@@ -57,8 +57,8 @@ async function processUserSchedule(bot, user, scheduleData) {
     const tomorrowDateStr = getTomorrowDateString();
     
     // Filter events for today and tomorrow
-    const todayEvents = filterEventsByDate(queueSchedule.events || [], todayDateStr);
-    const tomorrowEvents = filterEventsByDate(queueSchedule.events || [], tomorrowDateStr);
+    const todayEvents = filterEventsByDate(queueEvents, todayDateStr);
+    const tomorrowEvents = filterEventsByDate(queueEvents, tomorrowDateStr);
     
     // Detect changes for today and tomorrow
     const todayChange = await detectChange(user.region, user.queue, 'today', todayEvents);

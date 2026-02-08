@@ -63,10 +63,10 @@ function formatWelcomeMessage() {
 }
 
 /**
- * Format schedule message
+ * Format schedule message with hourly power status
  */
 function formatScheduleMessage(scheduleData, region, queue) {
-  if (!scheduleData || !scheduleData.schedules) {
+  if (!scheduleData || !scheduleData.hasData) {
     return `❌ Не вдалося завантажити графік для регіону <b>${escapeHtml(REGIONS[region]?.name || region)}</b>`;
   }
   
@@ -75,25 +75,41 @@ function formatScheduleMessage(scheduleData, region, queue) {
   message += `🌍 Регіон: <b>${escapeHtml(regionName)}</b>\n`;
   message += `⚡️ Черга: <b>${queue}</b>\n\n`;
   
-  const queueSchedule = scheduleData.schedules.find(s => s.queue === queue);
-  
-  if (!queueSchedule || !queueSchedule.events || queueSchedule.events.length === 0) {
+  if (!scheduleData.events || scheduleData.events.length === 0) {
     message += `✅ На даний момент відключень не заплановано.`;
     return message;
   }
   
-  message += `<b>Заплановані відключення:</b>\n\n`;
+  message += `<b>Графік по годинах:</b>\n\n`;
   
-  queueSchedule.events.forEach((event, index) => {
-    const start = new Date(event.start);
-    const end = new Date(event.end);
+  // Group events and display with status icons
+  scheduleData.events.forEach((event) => {
+    const startHour = event.hourStart;
+    const endHour = event.hourEnd;
     
-    message += `${index + 1}. 🔴 ${formatDateTime(start)} - ${formatTime(end)}\n`;
+    let statusIcon = '❓';
+    let statusText = 'невідомо';
+    
+    if (event.status === 'yes') {
+      statusIcon = '✅';
+      statusText = 'є світло';
+    } else if (event.status === 'no') {
+      statusIcon = '❌';
+      statusText = 'відключення';
+    } else if (event.status === 'maybe') {
+      statusIcon = '⚠️';
+      statusText = 'можливе відключення';
+    } else if (event.status === 'first' || event.status === 'second') {
+      statusIcon = '🟡';
+      statusText = 'перша/друга черга';
+    }
+    
+    message += `${statusIcon} ${startHour}:00-${endHour}:00 • ${statusText}\n`;
   });
   
-  if (scheduleData.updated) {
-    const updated = new Date(scheduleData.updated);
-    message += `\n\n📅 Оновлено: ${formatDateTime(updated)}`;
+  if (scheduleData.timestamp) {
+    const updated = new Date(scheduleData.timestamp * 1000);
+    message += `\n\n📅 Дані на: ${formatDate(updated)}`;
   }
   
   return message;
@@ -113,13 +129,41 @@ function formatTimerMessage(currentStatus, queue) {
     message += `🔴 <b>Зараз відключення!</b>\n\n`;
     message += `⏰ Закінчиться через: <b>${formatDuration(timeLeft)}</b>\n`;
     message += `🕐 Час завершення: ${formatTime(new Date(currentStatus.currentEvent.end))}`;
+  } else if (currentStatus.currentEvent && currentStatus.currentEvent.status === 'yes') {
+    // Currently have power
+    const endTime = new Date(currentStatus.currentEvent.end).getTime();
+    const timeLeft = endTime - Date.now();
+    
+    message += `✅ <b>Зараз електроенергія є</b>\n\n`;
+    
+    // Check if there's a next event (outage)
+    if (currentStatus.nextEvent) {
+      const nextStartTime = new Date(currentStatus.nextEvent.start).getTime();
+      const timeUntilNext = nextStartTime - Date.now();
+      
+      if (currentStatus.nextEvent.status === 'no') {
+        message += `⏰ Наступне відключення через: <b>${formatDuration(timeUntilNext)}</b>\n`;
+        message += `🕐 Початок: ${formatDateTime(new Date(currentStatus.nextEvent.start))}`;
+      } else {
+        message += `⏰ Наступна подія через: <b>${formatDuration(timeUntilNext)}</b>\n`;
+        message += `🕐 Початок: ${formatDateTime(new Date(currentStatus.nextEvent.start))}`;
+      }
+    } else {
+      message += `⏰ Світло буде до: ${formatTime(new Date(currentStatus.currentEvent.end))}\n`;
+      message += `Наступних відключень не заплановано`;
+    }
   } else if (currentStatus.nextEvent) {
     const startTime = new Date(currentStatus.nextEvent.start).getTime();
     const timeLeft = startTime - Date.now();
     
-    message += `✅ <b>Зараз електроенергія є</b>\n\n`;
-    message += `⏰ Наступне відключення через: <b>${formatDuration(timeLeft)}</b>\n`;
-    message += `🕐 Початок: ${formatDateTime(new Date(currentStatus.nextEvent.start))}`;
+    if (currentStatus.nextEvent.status === 'no') {
+      message += `✅ <b>Зараз електроенергія є</b>\n\n`;
+      message += `⏰ Наступне відключення через: <b>${formatDuration(timeLeft)}</b>\n`;
+      message += `🕐 Початок: ${formatDateTime(new Date(currentStatus.nextEvent.start))}`;
+    } else {
+      message += `⏰ Наступна подія через: <b>${formatDuration(timeLeft)}</b>\n`;
+      message += `🕐 Початок: ${formatDateTime(new Date(currentStatus.nextEvent.start))}`;
+    }
   } else {
     message += `✅ <b>Відключень не заплановано</b>`;
   }
