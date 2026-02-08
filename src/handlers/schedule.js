@@ -154,7 +154,9 @@ export async function handleSchedule(ctx) {
   }
   
   try {
-    await ctx.answerCallbackQuery();
+    if (ctx.callbackQuery) {
+      await ctx.answerCallbackQuery();
+    }
     
     // Fetch schedule data
     const scheduleData = await getScheduleData(userData.region, userData.queue);
