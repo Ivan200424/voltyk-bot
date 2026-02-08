@@ -34,6 +34,12 @@ GROUPS.forEach(group => {
   });
 });
 
+// Додаткові черги тільки для Києва (7.1 - 60.1)
+const KYIV_EXTRA_QUEUES = [];
+for (let group = 7; group <= 60; group++) {
+  KYIV_EXTRA_QUEUES.push(`${group}.1`);
+}
+
 const REGION_CODES = Object.keys(REGIONS);
 
-module.exports = { REGIONS, REGION_CODES, GROUPS, SUBGROUPS, QUEUES };
+module.exports = { REGIONS, REGION_CODES, GROUPS, SUBGROUPS, QUEUES, KYIV_EXTRA_QUEUES };

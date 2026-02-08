@@ -13,6 +13,8 @@ const {
   handleChannelReject,
   handleWizardBack,
   handleMyChatMember,
+  handleQueuePageExtra,
+  handleQueuePageMain,
 } = require('./handlers/start');
 
 const {
@@ -40,6 +42,8 @@ const {
   handleBackToMain,
   handleRegionChangeFromSettings,
   handleQueueChangeFromSettings,
+  handleQueueChangePageExtra,
+  handleQueueChangePageMain,
 } = require('./handlers/settings');
 
 const {
@@ -86,6 +90,14 @@ function setupBot(bot) {
   bot.on('my_chat_member', handleMyChatMember);
 
   // === CALLBACK QUERIES ===
+  
+  // Queue page navigation (wizard) — ПЕРЕД regex /^queue_/
+  bot.callbackQuery('queues_page_extra', handleQueuePageExtra);
+  bot.callbackQuery('queues_page_main', handleQueuePageMain);
+  
+  // Queue page navigation (settings)
+  bot.callbackQuery('queues_change_page_extra', handleQueueChangePageExtra);
+  bot.callbackQuery('queues_change_page_main', handleQueueChangePageMain);
   
   // Wizard callbacks - check wizard state
   bot.callbackQuery(/^region_/, async (ctx) => {

@@ -4,6 +4,7 @@ const {
   getSettingsKeyboard,
   getRegionChangeKeyboard,
   getQueueChangeKeyboard,
+  getQueueChangeKeyboardExtra,
   getChannelSettingsKeyboard,
   getNotifyTargetKeyboard,
   getAlertToggleKeyboard,
@@ -114,7 +115,7 @@ async function handleRegionChangeFromSettings(ctx) {
   
   await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
-    reply_markup: getQueueChangeKeyboard(),
+    reply_markup: getQueueChangeKeyboard(region),
   });
 }
 
@@ -420,6 +421,38 @@ async function handleBackToMain(ctx) {
   });
 }
 
+/**
+ * Handle queue change page navigation - extra queues (settings)
+ */
+async function handleQueueChangePageExtra(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const message = `Оберіть чергу:\n<i>(Черги 7–60)</i>`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getQueueChangeKeyboardExtra(),
+  });
+}
+
+/**
+ * Handle queue change page navigation - main queues (settings)
+ */
+async function handleQueueChangePageMain(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const conversation = await getState('conversation', chatId);
+  const region = conversation?.region || 'kyiv';
+  
+  const message = `✅ Регіон обрано: <b>${REGIONS[region].name}</b>\n\nТепер оберіть чергу:`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getQueueChangeKeyboard(region),
+  });
+}
+
 module.exports = {
   handleSettings,
   handleSettingsRegion,
@@ -437,4 +470,6 @@ module.exports = {
   handleBackToMain,
   handleRegionChangeFromSettings,
   handleQueueChangeFromSettings,
+  handleQueueChangePageExtra,
+  handleQueueChangePageMain,
 };
