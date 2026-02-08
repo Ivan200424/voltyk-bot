@@ -3,7 +3,8 @@ import {
   getScheduleHashes, 
   updateScheduleHashes,
   detectScheduleChanges,
-  getCheckInterval 
+  getCheckInterval,
+  getKyivDateString
 } from '../services/schedule.js';
 import { formatAutoPublishMessage } from '../handlers/schedule.js';
 import { get, getAllUserIds } from '../storage/index.js';
@@ -103,8 +104,11 @@ async function checkUserSchedule(userId) {
     // Get cached hashes
     const oldHashes = await getScheduleHashes(userId);
     
-    // Detect changes
-    const changes = detectScheduleChanges(oldHashes, scheduleData);
+    // Get current Kyiv date
+    const currentDate = getKyivDateString();
+    
+    // Detect changes with date-aware logic
+    const changes = detectScheduleChanges(oldHashes, scheduleData, currentDate);
     
     // Check if anything changed
     const hasChanges = changes.todayChanged || changes.todayIsNew || 
@@ -114,11 +118,12 @@ async function checkUserSchedule(userId) {
       return; // No changes, don't publish
     }
     
-    // Update hashes
+    // Update hashes with current date
     await updateScheduleHashes(
       userId, 
       scheduleData.today.hash,
-      scheduleData.tomorrow ? scheduleData.tomorrow.hash : null
+      scheduleData.tomorrow ? scheduleData.tomorrow.hash : null,
+      currentDate
     );
     
     // Format message based on changes
