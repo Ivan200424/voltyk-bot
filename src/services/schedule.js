@@ -134,11 +134,11 @@ function getDateTimestamp(date) {
  */
 function isPlaceholderData(dateData) {
   const groups = Object.keys(dateData);
-  if (groups.length === 0) return true;
+  if (groups.length === 0) return false; // No groups means malformed data, not placeholder
   
   return groups.every(gpvKey => {
     const hourlyData = dateData[gpvKey];
-    if (!hourlyData || typeof hourlyData !== 'object') return false;
+    if (!hourlyData || typeof hourlyData !== 'object') return false; // Invalid data structure
     
     for (let hour = 1; hour <= 24; hour++) {
       if (hourlyData[String(hour)] !== 'yes') {
