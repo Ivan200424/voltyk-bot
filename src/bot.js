@@ -62,7 +62,7 @@ bot.command('cancel', async (ctx) => {
   // Check if user is in channel setup
   const handled = await handleChannelSetupCancel(ctx);
   if (!handled) {
-    await ctx.reply('Немає активних операцій для скасування.');
+    await ctx.reply('Наразі немає операцій, які можна скасувати.');
   }
 });
 

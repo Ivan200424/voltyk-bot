@@ -260,7 +260,7 @@ export async function handleChannelAddDescription(ctx) {
 
   if (!setupState || setupState.step !== 'waiting_description_choice') {
     await ctx.answerCallbackQuery({
-      text: '⚠️ Session expired. Please start again.',
+      text: '⚠️ Сесія завершилася. Почніть заново.',
     });
     return;
   }
@@ -291,7 +291,7 @@ export async function handleChannelSkipDescription(ctx, bot) {
 
   if (!setupState || setupState.step !== 'waiting_description_choice') {
     await ctx.answerCallbackQuery({
-      text: '⚠️ Session expired. Please start again.',
+      text: '⚠️ Сесія завершилася. Почніть заново.',
     });
     return;
   }
