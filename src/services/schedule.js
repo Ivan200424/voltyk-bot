@@ -183,8 +183,8 @@ async function fetchScheduleFromRepo(region, queue, date) {
     // Parse intervals from hourly data
     const intervals = parseIntervalsFromHourlyData(hourlyData);
     
-    // Build image URL with cache-busting parameter
-    const imageUrl = `https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/images/${regionSlug}/gpv-${group}-${subgroup}-emergency.png?t=${Date.now()}`;
+    // Build image URL
+    const imageUrl = `https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/images/${regionSlug}/gpv-${group}-${subgroup}-emergency.png`;
     
     return {
       region,
