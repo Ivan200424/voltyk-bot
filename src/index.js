@@ -16,8 +16,11 @@ async function main() {
   // Initialize storage
   await initStorage();
   
-  // Get bot info
-  const botInfo = await bot.api.getMe();
+  // Initialize bot (this also fetches bot info internally)
+  await bot.init();
+  
+  // Get bot info from initialized bot
+  const botInfo = bot.botInfo;
   console.log(`✅ Bot @${botInfo.username} is ready`);
   
   // Setup webhook
