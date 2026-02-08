@@ -21,7 +21,7 @@ import { handleHelp } from './handlers/help.js';
 import { 
   handleSettings, 
   handleChangeRegion, 
-  handleChangeQueue, 
+  // handleChangeQueue, // Removed - queue is now changed through region selection
   handleToggleNotifications, 
   handleBack,
   handleRegionChangeFromSettings,
@@ -84,7 +84,7 @@ bot.callbackQuery('channel', handleChannel);
 // Settings callbacks
 bot.callbackQuery('settings', handleSettings);
 bot.callbackQuery('change_region', handleChangeRegion);
-bot.callbackQuery('change_queue', handleChangeQueue);
+// bot.callbackQuery('change_queue', handleChangeQueue); // Removed - queue is now changed through region selection
 bot.callbackQuery('toggle_notifications', handleToggleNotifications);
 bot.callbackQuery('back', handleBack);
 

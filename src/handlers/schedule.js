@@ -96,9 +96,8 @@ function formatScheduleMessage(scheduleData, queue, isManualRequest = true) {
     message += `💡 _Графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(tomorrow.intervals) + '\n\n';
     message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(tomorrow.totalHours))}*`;
-  } else {
-    message += `💡 Графік на завтра ще не опубліковано`;
   }
+  // If no tomorrow data, simply don't mention it at all
   
   return message;
 }
