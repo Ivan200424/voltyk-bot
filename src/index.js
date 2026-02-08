@@ -2,6 +2,7 @@ import { createServer } from 'http';
 import bot from './bot.js';
 import { config } from './config.js';
 import { initStorage, closeStorage } from './storage/index.js';
+import { initScheduleChecker, stopScheduleChecker } from './jobs/scheduleChecker.js';
 
 // Track processed update IDs to prevent duplicate processing (LRU-style)
 const processedUpdates = new Map();
@@ -22,6 +23,9 @@ async function main() {
   // Get bot info from initialized bot
   const botInfo = bot.botInfo;
   console.log(`✅ Bot @${botInfo.username} is ready`);
+  
+  // Initialize schedule checker
+  initScheduleChecker(bot);
   
   // Setup webhook
   if (config.webhookDomain) {
@@ -115,6 +119,9 @@ async function gracefulShutdown(signal) {
       });
     });
   }
+  
+  // Stop schedule checker
+  stopScheduleChecker();
   
   // Stop bot
   try {

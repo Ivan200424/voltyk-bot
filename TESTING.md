@@ -108,7 +108,7 @@ node test_bot_flow.js
    - [ ] Development notice shown at top
 
 2. **Test Menu Buttons**
-   - [ ] Click "📋 Подивитись графік" - should show "coming soon" alert
+   - [ ] Click "📋 Подивитись графік" - should show schedule with photo
    - [ ] Click "📡 Моніторинг" - should show "coming soon" alert
    - [ ] Click "📺 Канал" - should show "coming soon" alert
    - [ ] Click "⚙️ Налаштування" - should open settings
@@ -173,11 +173,61 @@ node test_bot_flow.js
    - [ ] Should return to main menu
 
 3. **Commands**
-   - [ ] Send `/schedule` - should show coming soon
+   - [ ] Send `/schedule` - should show schedule with photo
    - [ ] Send `/monitoring` - should show coming soon
    - [ ] Send `/settings` - should open settings
    - [ ] Send `/help` - should open help
    - [ ] Send `/feedback` - should open help (same as /help)
+
+### ✅ Schedule Feature (PR 2)
+
+1. **Manual Schedule Request**
+   - [ ] Click "📋 Подивитись графік" button
+   - [ ] Should send photo with schedule graph
+   - [ ] Caption should show today's schedule with intervals
+   - [ ] Caption should show tomorrow's schedule (if available)
+   - [ ] If tomorrow not available: "Графік на завтра ще не опубліковано"
+   - [ ] Should have "← Назад" and "⤴ Меню" buttons in one row
+   - [ ] Previous bot message should be deleted (clean chat)
+
+2. **Schedule Command Alias**
+   - [ ] Send `/schedule` command
+   - [ ] Should show same schedule as button click
+   - [ ] Format should be identical
+
+3. **Schedule Message Format**
+   - [ ] Date format: DD.MM.YYYY (e.g., "08.02.2026")
+   - [ ] Day of week in Ukrainian (Понеділок, Вівторок, etc.)
+   - [ ] Time intervals in format: "00:00 - 03:00 (~3 год)"
+   - [ ] Queue number displayed correctly (e.g., "3.1")
+   - [ ] Total hours calculated and displayed
+   - [ ] MarkdownV2 formatting applied (italic, bold)
+
+4. **Schedule Error Handling**
+   - [ ] If schedule unavailable, show: "⚠️ Графік тимчасово недоступний. Спробуйте пізніше."
+   - [ ] Error message should have "← Назад" and "⤴ Меню" buttons
+   - [ ] Bot should not crash on network errors
+
+5. **Automatic Schedule Publications**
+   - [ ] Schedule checker runs every minute (default interval)
+   - [ ] First publication shows basic "Графік відключень на сьогодні"
+   - [ ] Updated schedule shows "Оновлено графік відключень"
+   - [ ] New tomorrow schedule shows "З'явився графік відключень на завтра"
+   - [ ] No duplicate publications for same schedule (hash check)
+   - [ ] Publications sent to configured destination (bot or channel)
+
+6. **Publication Scenarios**
+   - [ ] Scenario 1: First today schedule appears
+   - [ ] Scenario 2: Today schedule updates
+   - [ ] Scenario 3: Tomorrow schedule appears (today unchanged)
+   - [ ] Scenario 4: Tomorrow appears + today updates
+   - [ ] Scenario 5: Tomorrow schedule updates (today unchanged)
+
+7. **Schedule Hash Caching**
+   - [ ] Same schedule not published twice
+   - [ ] Hash stored per user
+   - [ ] Separate hashes for today and tomorrow
+   - [ ] Hash changes detected correctly
 
 ### ✅ Fallback Handler
 
@@ -277,8 +327,9 @@ Verify correct symbols are used:
 
 ## Final Verification
 
-Before considering Block 1 complete:
+Before considering the bot complete:
 
+**Block 1 (Wizard & Basic Features):**
 - [ ] All wizard steps work correctly
 - [ ] Main menu displays accurate status
 - [ ] Settings can change region, queue, notifications
@@ -291,6 +342,19 @@ Before considering Block 1 complete:
 - [ ] Bot starts with and without Redis
 - [ ] No security vulnerabilities
 - [ ] No token leaks in logs
+
+**Block 2 (Schedule Feature):**
+- [ ] Schedule button shows photo with formatted caption
+- [ ] `/schedule` command works as alias
+- [ ] Date and time formatting correct
+- [ ] MarkdownV2 styling applied properly
+- [ ] Error handling for unavailable schedules
+- [ ] Automatic publications work (1 minute interval)
+- [ ] All 5 publication scenarios handled correctly
+- [ ] Hash-based deduplication works
+- [ ] No duplicate schedule publications
+- [ ] Bot and channel publishing supported
+- [ ] Previous bot messages deleted on manual request
 
 ## Reporting Issues
 

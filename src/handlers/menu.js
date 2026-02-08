@@ -1,5 +1,6 @@
 import { formatMainMenu } from '../utils/format.js';
 import { mainMenuKeyboard } from '../keyboards/inline.js';
+import { handleSchedule } from './schedule.js';
 
 export async function showMainMenu(ctx) {
   const userData = ctx.userData;
@@ -21,13 +22,8 @@ export async function handleMenu(ctx) {
   return await showMainMenu(ctx);
 }
 
-// Placeholder handlers for menu items
-export async function handleSchedule(ctx) {
-  await ctx.answerCallbackQuery({
-    text: '📋 Функція буде доступна в наступному оновленні',
-    show_alert: true,
-  });
-}
+// Export schedule handler
+export { handleSchedule };
 
 export async function handleMonitoring(ctx) {
   await ctx.answerCallbackQuery({
