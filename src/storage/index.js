@@ -93,6 +93,10 @@ export async function setUserData(userId, data) {
   return await set(`user:${userId}`, data);
 }
 
+export async function delUserData(userId) {
+  return await del(`user:${userId}`);
+}
+
 // User list helpers
 export async function addUserToList(userId) {
   const userList = await get('user_list') || [];
