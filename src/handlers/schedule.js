@@ -1,5 +1,6 @@
 import { getScheduleData } from '../services/schedule.js';
 import { backMenuKeyboard } from '../keyboards/inline.js';
+import { setUserData } from '../storage/index.js';
 
 /**
  * Escape special characters for MarkdownV2
@@ -9,23 +10,30 @@ function escapeMarkdownV2(text) {
 }
 
 /**
+ * Calculate hours for a single interval
+ */
+function calculateIntervalHours(interval) {
+  const [startTime, endTime] = interval.split(' - ');
+  const [startH, startM] = startTime.split(':').map(Number);
+  const [endH, endM] = endTime.split(':').map(Number);
+  
+  let startMinutes = startH * 60 + startM;
+  let endMinutes = endH * 60 + endM;
+  
+  // Handle crossing midnight
+  if (endMinutes < startMinutes) {
+    endMinutes += 24 * 60;
+  }
+  
+  return Math.round((endMinutes - startMinutes) / 60);
+}
+
+/**
  * Format time intervals with bold styling
  */
 function formatIntervals(intervals) {
   return intervals.map(interval => {
-    const [startTime, endTime] = interval.split(' - ');
-    const [startH, startM] = startTime.split(':').map(Number);
-    const [endH, endM] = endTime.split(':').map(Number);
-    
-    let startMinutes = startH * 60 + startM;
-    let endMinutes = endH * 60 + endM;
-    
-    // Handle crossing midnight
-    if (endMinutes < startMinutes) {
-      endMinutes += 24 * 60;
-    }
-    
-    const hours = Math.round((endMinutes - startMinutes) / 60);
+    const hours = calculateIntervalHours(interval);
     const escapedInterval = escapeMarkdownV2(interval);
     return `🪫 *${escapedInterval} \\(\\~${hours} год\\)*`;
   }).join('\n');
@@ -189,7 +197,6 @@ export async function handleSchedule(ctx) {
     );
     
     // Update lastBotMessageId
-    const { setUserData } = await import('../storage/index.js');
     userData.lastBotMessageId = sentMessage.message_id;
     await setUserData(userData.id, userData);
     

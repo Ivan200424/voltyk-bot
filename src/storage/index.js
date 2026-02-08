@@ -67,7 +67,9 @@ export async function setUserData(userId, data) {
 // User list helpers
 export async function addUserToList(userId) {
   const userList = await get('user_list') || [];
-  if (!userList.includes(userId)) {
+  // Use Set for O(1) lookup
+  const userSet = new Set(userList);
+  if (!userSet.has(userId)) {
     userList.push(userId);
     await set('user_list', userList);
   }

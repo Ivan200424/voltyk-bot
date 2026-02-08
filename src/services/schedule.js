@@ -11,9 +11,10 @@ const DAYS_OF_WEEK = [
 
 /**
  * Generate hash from schedule content
+ * Using SHA-256 for better collision resistance
  */
 function generateHash(content) {
-  return crypto.createHash('md5').update(JSON.stringify(content)).digest('hex');
+  return crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex');
 }
 
 /**
@@ -35,6 +36,7 @@ function getDayOfWeek(date) {
 
 /**
  * Calculate total hours from time intervals
+ * Returns rounded hours for display
  */
 function calculateTotalHours(intervals) {
   let totalMinutes = 0;
@@ -55,6 +57,7 @@ function calculateTotalHours(intervals) {
     totalMinutes += endMinutes - startMinutes;
   }
   
+  // Using Math.round for display - spec shows whole hours
   const hours = Math.round(totalMinutes / 60);
   return hours;
 }

@@ -61,15 +61,17 @@ export async function restartScheduleChecker() {
 
 /**
  * Check schedules for all users
+ * Uses Promise.allSettled for concurrent processing
  */
 async function checkAllUsersSchedules() {
   try {
     // Get all user IDs from storage
     const userIds = await getAllUserIds();
     
-    for (const userId of userIds) {
-      await checkUserSchedule(userId);
-    }
+    // Process users concurrently with error handling
+    await Promise.allSettled(
+      userIds.map(userId => checkUserSchedule(userId))
+    );
   } catch (error) {
     console.error('Error checking schedules:', error);
   }
