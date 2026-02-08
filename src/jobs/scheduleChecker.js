@@ -162,8 +162,14 @@ async function publishSchedule(userData, message, scheduleData) {
       }
     }
     
-    // Publish to channel
+    // Publish to channel (only if active)
     if (userData.notifyTo === 'channel' && userData.channelId) {
+      // Check if channel is blocked
+      if (userData.channel_status === 'blocked') {
+        console.log(`⚠️  Skipping blocked channel ${userData.channelId} for user ${userData.id}`);
+        return;
+      }
+      
       try {
         await botInstance.api.sendPhoto(userData.channelId, imageUrl, {
           caption: message,

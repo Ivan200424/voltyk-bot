@@ -64,6 +64,7 @@ export function mainMenuKeyboard() {
 export function settingsKeyboard() {
   return new InlineKeyboard()
     .text('📍 Змінити регіон', 'change_region').row()
+    .text('📺 Канал', 'channel_settings').row()
     .text('🔔 Сповіщення', 'toggle_notifications').row()
     .text('← Назад', 'back').text('⤴ Меню', 'menu');
 }
@@ -93,4 +94,20 @@ export function backMenuKeyboard() {
 export function menuKeyboard() {
   return new InlineKeyboard()
     .text('⤴ Меню', 'menu');
+}
+
+// Channel setup description choice keyboard
+export function channelSetupDescriptionKeyboard() {
+  return new InlineKeyboard()
+    .text('✍️ Додати опис', 'channel_add_description').row()
+    .text('⏭️ Пропустити', 'channel_skip_description');
+}
+
+// Channel settings keyboard
+export function channelSettingsKeyboard() {
+  return new InlineKeyboard()
+    .text('📺 Підключити канал', 'channel_setup').row()
+    .text('ℹ️ Інформація', 'channel_info').row()
+    .text('🔴 Відключити канал', 'channel_disconnect').row()
+    .text('← Назад', 'back').text('⤴ Меню', 'menu');
 }
