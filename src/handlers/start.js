@@ -8,7 +8,7 @@ const {
   getChannelConfirmKeyboard,
 } = require('../keyboards/inline');
 const { formatWelcomeMessage } = require('../formatter');
-const { REGIONS, KYIV_EXTRA_QUEUES } = require('../constants/regions');
+const { REGIONS, QUEUES, KYIV_EXTRA_QUEUES } = require('../constants/regions');
 const { safeEditMessage, safeAnswerCallback } = require('../utils/errorHandler');
 
 /**
@@ -91,11 +91,9 @@ async function handleWizardRegion(ctx) {
   let allQueues;
   if (region === 'kyiv') {
     // For Kyiv, include extra queues
-    const { QUEUES } = require('../constants/regions');
     allQueues = [...QUEUES, ...KYIV_EXTRA_QUEUES];
   } else {
     // For other regions, only standard queues
-    const { QUEUES } = require('../constants/regions');
     allQueues = QUEUES;
   }
   
@@ -385,10 +383,8 @@ async function handleWizardBack(ctx) {
     // Determine which queues to show based on region
     let allQueues;
     if (wizardState.region === 'kyiv') {
-      const { QUEUES } = require('../constants/regions');
       allQueues = [...QUEUES, ...KYIV_EXTRA_QUEUES];
     } else {
-      const { QUEUES } = require('../constants/regions');
       allQueues = QUEUES;
     }
     
@@ -446,10 +442,8 @@ async function handleQueuePage(ctx) {
   // Determine which queues to show based on region
   let allQueues;
   if (wizardState.region === 'kyiv') {
-    const { QUEUES } = require('../constants/regions');
     allQueues = [...QUEUES, ...KYIV_EXTRA_QUEUES];
   } else {
-    const { QUEUES } = require('../constants/regions');
     allQueues = QUEUES;
   }
   

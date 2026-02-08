@@ -37,7 +37,7 @@ function getQueueKeyboard(page = 1, allQueues = QUEUES, region = null) {
   const keyboard = new InlineKeyboard();
   
   // Determine standard queues (1.1-6.2) and extra queues (7.1+)
-  const standardCount = QUEUES.length; // 12 queues
+  const standardCount = QUEUES.length;
   const standardQueues = allQueues.slice(0, standardCount);
   const extraQueues = allQueues.slice(standardCount);
   const hasExtraQueues = extraQueues.length > 0;
@@ -295,7 +295,7 @@ function getQueueChangeKeyboard(page = 1, allQueues = QUEUES, region = null) {
   const keyboard = new InlineKeyboard();
   
   // Determine standard queues (1.1-6.2) and extra queues (7.1+)
-  const standardCount = QUEUES.length; // 12 queues
+  const standardCount = QUEUES.length;
   const standardQueues = allQueues.slice(0, standardCount);
   const extraQueues = allQueues.slice(standardCount);
   const hasExtraQueues = extraQueues.length > 0;

@@ -10,7 +10,7 @@ const {
   getDeleteDataConfirmKeyboard,
   getDeleteDataFinalKeyboard,
 } = require('../keyboards/inline');
-const { REGIONS, KYIV_EXTRA_QUEUES } = require('../constants/regions');
+const { REGIONS, QUEUES, KYIV_EXTRA_QUEUES } = require('../constants/regions');
 const { isAdmin } = require('../utils');
 const { safeAnswerCallback, safeEditMessage } = require('../utils/errorHandler');
 
@@ -115,10 +115,8 @@ async function handleRegionChangeFromSettings(ctx) {
   // Determine which queues to show based on region
   let allQueues;
   if (region === 'kyiv') {
-    const { QUEUES } = require('../constants/regions');
     allQueues = [...QUEUES, ...KYIV_EXTRA_QUEUES];
   } else {
-    const { QUEUES } = require('../constants/regions');
     allQueues = QUEUES;
   }
   
@@ -448,10 +446,8 @@ async function handleQueueChangePage(ctx) {
   // Determine which queues to show based on region
   let allQueues;
   if (region === 'kyiv') {
-    const { QUEUES } = require('../constants/regions');
     allQueues = [...QUEUES, ...KYIV_EXTRA_QUEUES];
   } else {
-    const { QUEUES } = require('../constants/regions');
     allQueues = QUEUES;
   }
   
