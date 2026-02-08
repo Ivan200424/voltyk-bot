@@ -62,6 +62,7 @@ function loadFromDisk() {
 
 /**
  * Save data to disk (debounced)
+ * Uses atomic write to prevent corruption on crash
  */
 function saveToDisk() {
   isDirty = true;
@@ -72,7 +73,7 @@ function saveToDisk() {
   }
 
   // Schedule write
-  writeTimeout = setTimeout(() => {
+  writeTimeout = setTimeout(async () => {
     if (!isDirty) return;
 
     try {
@@ -84,8 +85,11 @@ function saveToDisk() {
       // Convert Map to plain object
       const data = Object.fromEntries(storage);
 
-      // Write to file
-      fs.writeFileSync(STORAGE_FILE, JSON.stringify(data, null, 2), 'utf8');
+      // Atomic write: write to temp file, then rename
+      const tempFile = STORAGE_FILE + '.tmp';
+      await fs.promises.writeFile(tempFile, JSON.stringify(data, null, 2), 'utf8');
+      await fs.promises.rename(tempFile, STORAGE_FILE);
+      
       isDirty = false;
     } catch (error) {
       console.error('📁 Storage: Error writing to disk:', error.message);
@@ -104,7 +108,7 @@ export function getMemory(key) {
   // Check TTL
   if (item.expiresAt && Date.now() >= item.expiresAt) {
     storage.delete(key);
-    saveToDisk(); // Persist deletion of expired item
+    // Note: No saveToDisk() here - expired items won't be restored on next load anyway
     return null;
   }
   
