@@ -64,36 +64,48 @@ function formatWelcomeMessage() {
 
 /**
  * Format schedule message
+ * queueData: output from parseScheduleForQueue with events array
  */
-function formatScheduleMessage(scheduleData, region, queue) {
-  if (!scheduleData || !scheduleData.schedules) {
-    return `❌ Не вдалося завантажити графік для регіону <b>${escapeHtml(REGIONS[region]?.name || region)}</b>`;
-  }
-  
+function formatScheduleMessage(queueData, region, queue) {
   const regionName = REGIONS[region]?.name || region;
   let message = `📊 <b>Графік відключень</b>\n\n`;
   message += `🌍 Регіон: <b>${escapeHtml(regionName)}</b>\n`;
   message += `⚡️ Черга: <b>${queue}</b>\n\n`;
   
-  const queueSchedule = scheduleData.schedules.find(s => s.queue === queue);
-  
-  if (!queueSchedule || !queueSchedule.events || queueSchedule.events.length === 0) {
+  if (!queueData || !queueData.hasData || !queueData.events || queueData.events.length === 0) {
     message += `✅ На даний момент відключень не заплановано.`;
     return message;
   }
   
-  message += `<b>Заплановані відключення:</b>\n\n`;
+  // Separate planned and possible outages
+  const plannedEvents = queueData.events.filter(e => !e.isPossible);
+  const possibleEvents = queueData.events.filter(e => e.isPossible);
   
-  queueSchedule.events.forEach((event, index) => {
-    const start = new Date(event.start);
-    const end = new Date(event.end);
+  // Show planned outages
+  if (plannedEvents.length > 0) {
+    message += `<b>Заплановані відключення:</b>\n\n`;
     
-    message += `${index + 1}. 🔴 ${formatDateTime(start)} - ${formatTime(end)}\n`;
-  });
+    plannedEvents.forEach((event, index) => {
+      const start = event.start;
+      const end = event.end;
+      
+      message += `${index + 1}. 🔴 ${formatDateTime(start)} - ${formatTime(end)}\n`;
+    });
+  }
   
-  if (scheduleData.updated) {
-    const updated = new Date(scheduleData.updated);
-    message += `\n\n📅 Оновлено: ${formatDateTime(updated)}`;
+  // Show possible outages
+  if (possibleEvents.length > 0) {
+    if (plannedEvents.length > 0) {
+      message += `\n`;
+    }
+    message += `<b>Можливі відключення:</b>\n\n`;
+    
+    possibleEvents.forEach((event, index) => {
+      const start = event.start;
+      const end = event.end;
+      
+      message += `${index + 1}. ⚠️ ${formatDateTime(start)} - ${formatTime(end)}\n`;
+    });
   }
   
   return message;
@@ -107,19 +119,27 @@ function formatTimerMessage(currentStatus, queue) {
   message += `⚡️ Черга: <b>${queue}</b>\n\n`;
   
   if (currentStatus.isOutage && currentStatus.currentEvent) {
-    const endTime = new Date(currentStatus.currentEvent.end).getTime();
+    const endTime = currentStatus.currentEvent.end.getTime();
     const timeLeft = endTime - Date.now();
     
-    message += `🔴 <b>Зараз відключення!</b>\n\n`;
+    if (currentStatus.isPossible) {
+      message += `⚠️ <b>Можливе відключення!</b>\n\n`;
+    } else {
+      message += `🔴 <b>Зараз відключення!</b>\n\n`;
+    }
     message += `⏰ Закінчиться через: <b>${formatDuration(timeLeft)}</b>\n`;
-    message += `🕐 Час завершення: ${formatTime(new Date(currentStatus.currentEvent.end))}`;
+    message += `🕐 Час завершення: ${formatTime(currentStatus.currentEvent.end)}`;
   } else if (currentStatus.nextEvent) {
-    const startTime = new Date(currentStatus.nextEvent.start).getTime();
+    const startTime = currentStatus.nextEvent.start.getTime();
     const timeLeft = startTime - Date.now();
     
     message += `✅ <b>Зараз електроенергія є</b>\n\n`;
-    message += `⏰ Наступне відключення через: <b>${formatDuration(timeLeft)}</b>\n`;
-    message += `🕐 Початок: ${formatDateTime(new Date(currentStatus.nextEvent.start))}`;
+    if (currentStatus.nextEvent.isPossible) {
+      message += `⏰ Можливе відключення через: <b>${formatDuration(timeLeft)}</b>\n`;
+    } else {
+      message += `⏰ Наступне відключення через: <b>${formatDuration(timeLeft)}</b>\n`;
+    }
+    message += `🕐 Початок: ${formatDateTime(currentStatus.nextEvent.start)}`;
   } else {
     message += `✅ <b>Відключень не заплановано</b>`;
   }
@@ -135,11 +155,18 @@ function formatNextEventMessage(currentStatus, queue) {
   message += `⚡️ Черга: <b>${queue}</b>\n\n`;
   
   if (currentStatus.isOutage && currentStatus.currentEvent) {
-    message += `🔴 <b>Зараз відключення!</b>\n\n`;
-    message += `Закінчиться: ${formatDateTime(new Date(currentStatus.currentEvent.end))}`;
+    if (currentStatus.isPossible) {
+      message += `⚠️ <b>Можливе відключення!</b>\n\n`;
+    } else {
+      message += `🔴 <b>Зараз відключення!</b>\n\n`;
+    }
+    message += `Закінчиться: ${formatDateTime(currentStatus.currentEvent.end)}`;
   } else if (currentStatus.nextEvent) {
-    message += `Початок: ${formatDateTime(new Date(currentStatus.nextEvent.start))}\n`;
-    message += `Кінець: ${formatTime(new Date(currentStatus.nextEvent.end))}`;
+    if (currentStatus.nextEvent.isPossible) {
+      message += `Можливе відключення:\n`;
+    }
+    message += `Початок: ${formatDateTime(currentStatus.nextEvent.start)}\n`;
+    message += `Кінець: ${formatTime(currentStatus.nextEvent.end)}`;
   } else {
     message += `✅ Відключень не заплановано`;
   }
