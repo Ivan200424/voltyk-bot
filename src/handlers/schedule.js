@@ -4,9 +4,12 @@ import { setUserData } from '../storage/index.js';
 
 /**
  * Escape special characters for MarkdownV2
+ * Backslashes must be escaped first to avoid double-escaping
  */
 function escapeMarkdownV2(text) {
-  return text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
+  return text
+    .replace(/\\/g, '\\\\')  // Escape backslashes first
+    .replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');  // Then escape other special chars
 }
 
 /**
