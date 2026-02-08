@@ -129,6 +129,27 @@ function getDateTimestamp(date) {
 }
 
 /**
+ * Check if date data is placeholder (all groups have "yes" for all 24 hours)
+ * outage-data-ua fills unpublished days with "yes" x 24 for all GPV groups
+ */
+function isPlaceholderData(dateData) {
+  const groups = Object.keys(dateData);
+  if (groups.length === 0) return false; // No groups means malformed data, not placeholder
+  
+  return groups.every(gpvKey => {
+    const hourlyData = dateData[gpvKey];
+    if (!hourlyData || typeof hourlyData !== 'object') return false; // Invalid data structure
+    
+    for (let hour = 1; hour <= 24; hour++) {
+      if (hourlyData[String(hour)] !== 'yes') {
+        return false;
+      }
+    }
+    return true;
+  });
+}
+
+/**
  * Fetch schedule data from outage-data-ua repository
  */
 async function fetchScheduleFromRepo(region, queue, date) {
@@ -168,6 +189,12 @@ async function fetchScheduleFromRepo(region, queue, date) {
     const dateData = jsonData?.fact?.data?.[dateKey];
     if (!dateData) {
       console.error(`No data found for date ${dateKey} in ${regionSlug}`);
+      return null;
+    }
+    
+    // Check if this is placeholder data (all "yes" for all groups)
+    if (isPlaceholderData(dateData)) {
+      console.log(`Placeholder data detected for ${dateKey} in ${regionSlug}, skipping`);
       return null;
     }
     
