@@ -24,8 +24,8 @@ function calculateIntervalHours(interval) {
   let startMinutes = startH * 60 + startM;
   let endMinutes = endH * 60 + endM;
   
-  // Handle crossing midnight
-  if (endMinutes < startMinutes) {
+  // Handle crossing midnight (end time is 00:00 meaning next day)
+  if (endMinutes <= startMinutes) {
     endMinutes += 24 * 60;
   }
   
