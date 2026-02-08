@@ -66,6 +66,26 @@ const {
 
 const { getState } = require('./state/stateManager');
 const { getUser } = require('./database/redis');
+const { formatMainMenu } = require('./formatter');
+const { getMainMenu } = require('./keyboards/inline');
+
+/**
+ * Helper function to handle fallback messages
+ */
+async function handleFallbackMessage(ctx) {
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (user && user.region && user.queue) {
+    await ctx.reply(formatMainMenu(user), {
+      parse_mode: 'HTML',
+      reply_markup: getMainMenu(user),
+    });
+  } else {
+    // User not set up - redirect to /start
+    await ctx.reply('👋 Натисніть /start щоб почати налаштування бота.');
+  }
+}
 
 /**
  * Setup bot with all handlers
@@ -194,40 +214,12 @@ function setupBot(bot) {
 
   // Fallback for text messages (ignore non-command messages)
   bot.on('message:text', async (ctx) => {
-    // If user sends a random text message, show them the main menu
-    const chatId = ctx.from.id;
-    const user = await getUser(chatId);
-    
-    if (user && user.region && user.queue) {
-      const { formatMainMenu } = require('./formatter');
-      const { getMainMenu } = require('./keyboards/inline');
-      
-      await ctx.reply(formatMainMenu(user), {
-        parse_mode: 'HTML',
-        reply_markup: getMainMenu(user),
-      });
-    } else {
-      // User not set up - redirect to /start
-      await ctx.reply('👋 Натисніть /start щоб почати налаштування бота.');
-    }
+    await handleFallbackMessage(ctx);
   });
 
   // Fallback for other message types (media, stickers, etc.)
   bot.on('message', async (ctx) => {
-    const chatId = ctx.from.id;
-    const user = await getUser(chatId);
-    
-    if (user && user.region && user.queue) {
-      const { formatMainMenu } = require('./formatter');
-      const { getMainMenu } = require('./keyboards/inline');
-      
-      await ctx.reply(formatMainMenu(user), {
-        parse_mode: 'HTML',
-        reply_markup: getMainMenu(user),
-      });
-    } else {
-      await ctx.reply('👋 Натисніть /start щоб почати налаштування бота.');
-    }
+    await handleFallbackMessage(ctx);
   });
 
   // Error handler
