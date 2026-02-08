@@ -331,8 +331,10 @@ function getQueueChangeKeyboard(page = 1, allQueues = QUEUES, region = null) {
       .text('← Назад', 'settings_region')
       .text('⤴ Меню', 'back_to_main');
   } else if (page === 2) {
-    // Page 2: Show back to page 1
-    keyboard.text('← Назад', 'queue_change_page_1');
+    // Page 2: Show back to page 1 and menu
+    keyboard
+      .text('← Назад', 'queue_change_page_1')
+      .text('⤴ Меню', 'back_to_main');
   }
   
   return keyboard;
