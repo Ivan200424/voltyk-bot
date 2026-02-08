@@ -35,8 +35,7 @@ export async function handleMonitoring(ctx) {
 }
 
 export async function handleChannel(ctx) {
-  await ctx.answerCallbackQuery({
-    text: '📺 Функція буде доступна в наступному оновленні',
-    show_alert: true,
-  });
+  // Import dynamically to avoid circular dependencies
+  const { handleChannelSetup } = await import('./channel.js');
+  return await handleChannelSetup(ctx);
 }

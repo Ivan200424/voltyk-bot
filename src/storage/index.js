@@ -55,6 +55,16 @@ export async function getUserData(userId) {
     notificationsEnabled: true,
     wizardCompleted: false,
     lastBotMessageId: null,
+    // Channel branding fields
+    channel_id: null,
+    channel_title: null,
+    channel_description: null,
+    channel_photo_file_id: null,
+    channel_user_title: null,
+    channel_user_description: null,
+    channel_status: null, // 'active' or 'blocked'
+    channel_branding_updated_at: null,
+    migration_notified: false,
   };
 }
 
@@ -90,6 +100,19 @@ export async function setWizardState(userId, state) {
 
 export async function delWizardState(userId) {
   return await del(`wizard:${userId}`);
+}
+
+// Channel setup state
+export async function getChannelSetupState(userId) {
+  return await get(`channel_setup:${userId}`) || null;
+}
+
+export async function setChannelSetupState(userId, state) {
+  return await set(`channel_setup:${userId}`, state, 1800); // 30 minutes TTL
+}
+
+export async function delChannelSetupState(userId) {
+  return await del(`channel_setup:${userId}`);
 }
 
 export async function closeStorage() {

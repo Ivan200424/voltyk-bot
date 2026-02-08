@@ -1,5 +1,5 @@
 import { getUserData, setUserData } from '../storage/index.js';
-import { settingsKeyboard, regionKeyboard, queueKeyboard } from '../keyboards/inline.js';
+import { settingsKeyboard, regionKeyboard, queueKeyboard, channelSettingsKeyboard } from '../keyboards/inline.js';
 import { showMainMenu } from './menu.js';
 
 export async function handleSettings(ctx) {
@@ -52,6 +52,42 @@ export async function handleToggleNotifications(ctx) {
   });
   
   return await handleSettings(ctx);
+}
+
+export async function handleChannelSettings(ctx) {
+  const userId = ctx.from.id;
+  const userData = await getUserData(userId);
+
+  await ctx.answerCallbackQuery();
+
+  // Show different UI based on whether channel is connected
+  if (userData.channel_id && userData.channel_status === 'active') {
+    const channelLink = userData.channelName ? `@${userData.channelName}` : userData.channel_id;
+    
+    const text = `📺 <b>Налаштування каналу</b>
+
+Канал: ${channelLink}
+Статус: ✅ Активний
+
+Оберіть дію:`;
+
+    return await ctx.cleanAndEdit(text, {
+      parse_mode: 'HTML',
+      reply_markup: channelSettingsKeyboard(),
+    });
+  } else {
+    // No channel connected or blocked
+    const text = `📺 <b>Налаштування каналу</b>
+
+У вас немає підключеного активного каналу.
+
+Оберіть дію:`;
+
+    return await ctx.cleanAndEdit(text, {
+      parse_mode: 'HTML',
+      reply_markup: channelSettingsKeyboard(),
+    });
+  }
 }
 
 export async function handleBack(ctx) {

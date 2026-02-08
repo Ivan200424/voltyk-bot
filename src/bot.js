@@ -24,10 +24,22 @@ import {
   handleToggleNotifications, 
   handleBack,
   handleRegionChangeFromSettings,
-  handleQueueChangeFromSettings
+  handleQueueChangeFromSettings,
+  handleChannelSettings
 } from './handlers/settings.js';
 import { handleFallbackMessage, handleUnknownCallback } from './handlers/fallback.js';
-import { getUserData, getWizardState } from './storage/index.js';
+import { getUserData, getWizardState, getChannelSetupState } from './storage/index.js';
+import {
+  handleChannelInput,
+  handleChannelNameInput,
+  handleChannelDescriptionInput,
+  handleChannelSetupCancel,
+  handleChannelAddDescription,
+  handleChannelSkipDescription,
+  handleChannelSetup,
+  handleChannelInfo,
+  handleChannelDisconnect,
+} from './handlers/channel.js';
 
 if (!config.botToken) {
   throw new Error('BOT_TOKEN is required');
@@ -46,6 +58,13 @@ bot.command('monitoring', handleMonitoring);
 bot.command('settings', handleSettings);
 bot.command('help', handleHelp);
 bot.command('feedback', handleHelp); // Redirect to help
+bot.command('cancel', async (ctx) => {
+  // Check if user is in channel setup
+  const handled = await handleChannelSetupCancel(ctx);
+  if (!handled) {
+    await ctx.reply('Немає активних операцій для скасування.');
+  }
+});
 
 // Wizard callbacks - need to check wizard state
 bot.callbackQuery(/^region:/, async (ctx) => {
@@ -84,7 +103,15 @@ bot.callbackQuery('channel', handleChannel);
 bot.callbackQuery('settings', handleSettings);
 bot.callbackQuery('change_region', handleChangeRegion);
 bot.callbackQuery('toggle_notifications', handleToggleNotifications);
+bot.callbackQuery('channel_settings', handleChannelSettings);
 bot.callbackQuery('back', handleBack);
+
+// Channel callbacks
+bot.callbackQuery('channel_setup', handleChannelSetup);
+bot.callbackQuery('channel_info', handleChannelInfo);
+bot.callbackQuery('channel_disconnect', handleChannelDisconnect);
+bot.callbackQuery('channel_add_description', handleChannelAddDescription);
+bot.callbackQuery('channel_skip_description', (ctx) => handleChannelSkipDescription(ctx, bot));
 
 // Help callback
 bot.callbackQuery('help', handleHelp);
@@ -93,10 +120,38 @@ bot.callbackQuery('help', handleHelp);
 bot.on('callback_query:data', handleUnknownCallback);
 
 // Fallback for all other text messages (non-command messages)
-bot.on('message:text', handleFallbackMessage);
+bot.on('message:text', async (ctx) => {
+  // Check if user is in channel setup flow
+  const channelSetupState = await getChannelSetupState(ctx.from.id);
+  
+  if (channelSetupState) {
+    // Handle different channel setup steps
+    if (channelSetupState.step === 'waiting_channel') {
+      const handled = await handleChannelInput(ctx, bot);
+      if (handled) return;
+    } else if (channelSetupState.step === 'waiting_channel_name') {
+      const handled = await handleChannelNameInput(ctx);
+      if (handled) return;
+    } else if (channelSetupState.step === 'waiting_channel_description') {
+      const handled = await handleChannelDescriptionInput(ctx, bot);
+      if (handled) return;
+    }
+  }
+  
+  // Default fallback
+  return await handleFallbackMessage(ctx);
+});
 
 // Fallback for other message types (media, stickers, etc.)
-bot.on('message', (ctx) => {
+bot.on('message', async (ctx) => {
+  // Check if it's a forwarded message during channel setup
+  const channelSetupState = await getChannelSetupState(ctx.from.id);
+  
+  if (channelSetupState && channelSetupState.step === 'waiting_channel' && ctx.message.forward_origin) {
+    const handled = await handleChannelInput(ctx, bot);
+    if (handled) return;
+  }
+  
   // Silently ignore non-text messages
   console.log('Received non-text message, ignoring');
 });

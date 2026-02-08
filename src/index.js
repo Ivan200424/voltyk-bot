@@ -1,8 +1,10 @@
 import { createServer } from 'http';
 import bot from './bot.js';
 import { config } from './config.js';
-import { initStorage, closeStorage } from './storage/index.js';
+import { initStorage, closeStorage, getAllUserIds, getUserData, setUserData } from './storage/index.js';
 import { initScheduleChecker, stopScheduleChecker } from './jobs/scheduleChecker.js';
+import { initChannelGuard, stopChannelGuard } from './jobs/channelGuard.js';
+import { migrateExistingChannel } from './services/channel.js';
 
 // Track processed update IDs to prevent duplicate processing (LRU-style)
 const processedUpdates = new Map();
@@ -26,6 +28,12 @@ async function main() {
   
   // Initialize schedule checker
   initScheduleChecker(bot);
+  
+  // Initialize channel guard
+  initChannelGuard(bot);
+  
+  // Run one-time migration for existing channels
+  await migrateExistingChannels(bot);
   
   // Setup webhook
   if (config.webhookDomain) {
@@ -123,6 +131,9 @@ async function gracefulShutdown(signal) {
   // Stop schedule checker
   stopScheduleChecker();
   
+  // Stop channel guard
+  stopChannelGuard();
+  
   // Stop bot
   try {
     await bot.stop();
@@ -140,6 +151,85 @@ async function gracefulShutdown(signal) {
 
 process.once('SIGINT', () => gracefulShutdown('SIGINT'));
 process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+/**
+ * Migrate existing channels (one-time on startup)
+ */
+async function migrateExistingChannels(bot) {
+  try {
+    console.log('🔄 Checking for channels that need migration...');
+    
+    const userIds = await getAllUserIds();
+    let migratedCount = 0;
+    let notifiedCount = 0;
+    
+    for (const userId of userIds) {
+      try {
+        const userData = await getUserData(userId);
+        
+        // Skip if no channel or already has branding fields
+        if (!userData.channelId || userData.channel_title) {
+          continue;
+        }
+        
+        const migrationResult = await migrateExistingChannel(bot, userData);
+        
+        if (migrationResult.alreadyCorrect) {
+          // Channel already has correct branding - just update DB
+          userData.channel_id = userData.channelId;
+          userData.channel_title = migrationResult.currentTitle;
+          userData.channel_description = migrationResult.currentDescription;
+          userData.channel_photo_file_id = migrationResult.currentPhotoFileId;
+          userData.channel_status = 'active';
+          userData.channel_branding_updated_at = Date.now();
+          
+          // Extract user title from full title
+          const prefix = 'Вольтик ⚡️ ';
+          if (migrationResult.currentTitle.startsWith(prefix)) {
+            userData.channel_user_title = migrationResult.currentTitle.substring(prefix.length);
+          }
+          
+          await setUserData(userId, userData);
+          migratedCount++;
+          
+          console.log(`✅ Auto-migrated channel for user ${userId} (already correct)`);
+        } else if (migrationResult.needsMigration) {
+          // Channel needs manual setup - block it and notify user
+          userData.channel_status = 'blocked';
+          userData.migration_notified = true;
+          await setUserData(userId, userData);
+          
+          await bot.api.sendMessage(userId, `⚠️ <b>Важливе оновлення</b>
+
+Ми додали нову систему брендування каналів для Вольтика.
+
+Всі підключені канали тепер повинні мати:
+• Стандартну назву з префіксом "Вольтик ⚡️"
+• Стандартний опис
+• Стандартне фото
+
+🔴 Ваш канал тимчасово відключено.
+
+Щоб відновити роботу:
+1. Перейдіть в Налаштування → Канал
+2. Підключіть канал заново
+3. Бот автоматично встановить правильне оформлення`, {
+            parse_mode: 'HTML',
+          });
+          
+          notifiedCount++;
+          console.log(`📧 Notified user ${userId} about migration needed`);
+        }
+      } catch (error) {
+        console.error(`Error migrating channel for user ${userId}:`, error);
+      }
+    }
+    
+    console.log(`✅ Migration complete: ${migratedCount} auto-migrated, ${notifiedCount} notified`);
+  } catch (error) {
+    console.error('Error during channel migration:', error);
+  }
+}
 
 // Start the bot
 main().catch((error) => {
