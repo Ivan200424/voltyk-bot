@@ -4,9 +4,16 @@ import { config } from '../config.js';
 // Wizard Step 1: Region selection
 export function regionKeyboard() {
   const keyboard = new InlineKeyboard();
-  config.regions.forEach((region) => {
-    keyboard.text(region, `region:${region}`).row();
-  });
+  const regions = config.regions;
+  
+  // Display in 2x2 grid
+  for (let i = 0; i < regions.length; i += 2) {
+    regions.slice(i, i + 2).forEach((region) => {
+      keyboard.text(region, `region:${region}`);
+    });
+    keyboard.row();
+  }
+  
   return keyboard;
 }
 
@@ -15,13 +22,16 @@ export function queueKeyboard() {
   const keyboard = new InlineKeyboard();
   const queues = config.queues;
   
-  // Display in 3x3 grid
-  for (let i = 0; i < queues.length; i += 3) {
-    queues.slice(i, i + 3).forEach((queue) => {
+  // Display in 2x6 grid
+  for (let i = 0; i < queues.length; i += 2) {
+    queues.slice(i, i + 2).forEach((queue) => {
       keyboard.text(queue, `queue:${queue}`);
     });
     keyboard.row();
   }
+  
+  // Add back button
+  keyboard.text('← Назад', 'wizard_back').row();
   
   return keyboard;
 }
@@ -30,14 +40,16 @@ export function queueKeyboard() {
 export function notifyToKeyboard() {
   return new InlineKeyboard()
     .text('📱 У бота', 'notify_to:bot').row()
-    .text('📺 У власний канал', 'notify_to:channel');
+    .text('📺 У власний канал', 'notify_to:channel').row()
+    .text('← Назад', 'wizard_back');
 }
 
 // Wizard Step 4: IP monitoring (optional)
 export function ipMonitoringKeyboard() {
   return new InlineKeyboard()
     .text('➕ Додати адресу', 'ip:add').row()
-    .text('⏭ Пропустити', 'ip:skip');
+    .text('⏭ Пропустити', 'ip:skip').row()
+    .text('← Назад', 'wizard_back');
 }
 
 // Main menu keyboard
@@ -56,16 +68,14 @@ export function settingsKeyboard() {
     .text('📍 Змінити регіон', 'change_region').row()
     .text('🔢 Змінити чергу', 'change_queue').row()
     .text('🔔 Сповіщення', 'toggle_notifications').row()
-    .text('← Назад', 'back')
-    .text('⤴ Меню', 'menu');
+    .text('← Назад', 'back').text('⤴ Меню', 'menu');
 }
 
 // Help keyboard
 export function helpKeyboard() {
   return new InlineKeyboard()
     .url('💬 Обговорення / Підтримка', config.supportChatUrl).row()
-    .text('← Назад', 'back')
-    .text('⤴ Меню', 'menu');
+    .text('← Назад', 'back').text('⤴ Меню', 'menu');
 }
 
 // Fallback keyboard
