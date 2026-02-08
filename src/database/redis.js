@@ -65,7 +65,8 @@ function getRedisClient() {
 }
 
 function startReconnectLoop() {
-  if (reconnectInterval) return; // Already running
+  // Don't start if already running OR if Redis is already available
+  if (reconnectInterval || redisAvailable) return;
   
   reconnectInterval = setInterval(() => {
     // Stop trying if Redis is available
@@ -76,7 +77,7 @@ function startReconnectLoop() {
       return;
     }
     
-    if (client) {
+    if (client && client.status !== 'connecting' && client.status !== 'ready') {
       console.log('🔄 Спроба перепідключення до Redis...');
       client.connect().catch(err => {
         console.error('❌ Не вдалося перепідключитись до Redis:', err.message);
@@ -810,6 +811,17 @@ async function incrementStat(field, count = 1) {
     // Also update total stats for consistency
     const currentTotal = inMemoryStorage.totalStats.get(field) || 0;
     inMemoryStorage.totalStats.set(field, currentTotal + count);
+    
+    // Clean up old daily stats (keep only last 7 days to prevent memory leak)
+    if (inMemoryStorage.stats.size > 7) {
+      const dates = Array.from(inMemoryStorage.stats.keys()).sort();
+      const oldestToKeep = dates[dates.length - 7];
+      for (const date of dates) {
+        if (date < oldestToKeep) {
+          inMemoryStorage.stats.delete(date);
+        }
+      }
+    }
     
     return true;
   }
