@@ -3,6 +3,10 @@ const { escapeHtml, formatNumber } = require('./utils');
 const { formatDuration } = require('./parser');
 const { formatDateUkrainian, isToday, isTomorrow } = require('./utils/dateHelpers');
 
+// Constants
+const MS_PER_HOUR = 1000 * 60 * 60;
+const MS_PER_MINUTE = 1000 * 60;
+
 /**
  * Format main menu message
  */
@@ -84,7 +88,7 @@ function formatScheduleMessage(queueData, region, queue) {
     const dateStr = formatDateUkrainian(todayDate);
     message += `💡 Графік відключень на сьогодні, ${escapeHtml(dateStr)}, для черги ${escapeHtml(queue)}:\n\n`;
     
-    let totalMinutes = 0;
+    let todayTotalMinutes = 0;
     todayEvents.forEach((event) => {
       const start = new Date(event.start);
       const end = new Date(event.end);
@@ -102,14 +106,14 @@ function formatScheduleMessage(queueData, region, queue) {
       });
       
       const durationMs = end.getTime() - start.getTime();
-      const durationHours = Math.round(durationMs / (1000 * 60 * 60));
-      totalMinutes += durationMs / (1000 * 60);
+      const durationHours = Math.round(durationMs / MS_PER_HOUR);
+      todayTotalMinutes += durationMs / MS_PER_MINUTE;
       
       message += `🪫 ${startTime} - ${endTime} (~${durationHours} год)\n`;
     });
     
-    const totalHours = Math.round(totalMinutes / 60);
-    message += `\nЗагалом без світла: ~${totalHours} год`;
+    const todayTotalHours = Math.round(todayTotalMinutes / 60);
+    message += `\nЗагалом без світла: ~${todayTotalHours} год`;
   }
   
   // Format tomorrow's schedule
@@ -123,7 +127,7 @@ function formatScheduleMessage(queueData, region, queue) {
     const dateStr = formatDateUkrainian(tomorrowDate);
     message += `💡 Графік відключень на завтра, ${escapeHtml(dateStr)}, для черги ${escapeHtml(queue)}:\n\n`;
     
-    let totalMinutes = 0;
+    let tomorrowTotalMinutes = 0;
     tomorrowEvents.forEach((event) => {
       const start = new Date(event.start);
       const end = new Date(event.end);
@@ -141,14 +145,14 @@ function formatScheduleMessage(queueData, region, queue) {
       });
       
       const durationMs = end.getTime() - start.getTime();
-      const durationHours = Math.round(durationMs / (1000 * 60 * 60));
-      totalMinutes += durationMs / (1000 * 60);
+      const durationHours = Math.round(durationMs / MS_PER_HOUR);
+      tomorrowTotalMinutes += durationMs / MS_PER_MINUTE;
       
       message += `🪫 ${startTime} - ${endTime} (~${durationHours} год)\n`;
     });
     
-    const totalHours = Math.round(totalMinutes / 60);
-    message += `\nЗагалом без світла: ~${totalHours} год`;
+    const tomorrowTotalHours = Math.round(tomorrowTotalMinutes / 60);
+    message += `\nЗагалом без світла: ~${tomorrowTotalHours} год`;
   }
   
   return message;

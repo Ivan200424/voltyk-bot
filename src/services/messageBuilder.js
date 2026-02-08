@@ -4,6 +4,10 @@ const { createLogger } = require('../utils/logger');
 
 const logger = createLogger('MessageBuilder');
 
+// Constants
+const MS_PER_HOUR = 1000 * 60 * 60;
+const MS_PER_MINUTE = 1000 * 60;
+
 /**
  * Format schedule events into a readable table
  * @param {Array} events - Schedule events
@@ -34,8 +38,8 @@ function formatScheduleEvents(events) {
     });
     
     const durationMs = end.getTime() - start.getTime();
-    const durationHours = Math.round(durationMs / (1000 * 60 * 60));
-    totalMinutes += durationMs / (1000 * 60);
+    const durationHours = Math.round(durationMs / MS_PER_HOUR);
+    totalMinutes += durationMs / MS_PER_MINUTE;
     
     text += `🪫 ${startTime} - ${endTime} (~${durationHours} год)\n`;
   });
