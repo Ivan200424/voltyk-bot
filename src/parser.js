@@ -30,6 +30,15 @@ function parseScheduleData(data) {
 }
 
 /**
+ * Construct GPV queue key from queue identifier
+ * @param {string} queue - Queue identifier (e.g., "1.1", "2.1")
+ * @returns {string} GPV key (e.g., "GPV1.1", "GPV2.1")
+ */
+function constructQueueKey(queue) {
+  return `GPV${queue}`;
+}
+
+/**
  * Create a Date object from a period's start/end time
  * @param {Date} baseDate - Base date for the period
  * @param {number} time - Time as a decimal (e.g., 13.5 for 13:30)
@@ -55,7 +64,7 @@ function createDateFromPeriod(baseDate, time) {
 function parseScheduleForQueue(data, queue) {
   try {
     // Construct GPV key: queue "1.1" becomes "GPV1.1"
-    const queueKey = `GPV${queue}`;
+    const queueKey = constructQueueKey(queue);
     
     // Validate data structure
     if (!data || !data.fact || !data.fact.data) {
@@ -161,7 +170,7 @@ function parseScheduleForQueue(data, queue) {
     logger.error(`Error parsing schedule for queue ${queue}:`, error);
     return {
       queue,
-      queueKey: `GPV${queue}`,
+      queueKey: constructQueueKey(queue),
       events: [],
       hasData: false,
       error: error.message,
@@ -179,8 +188,8 @@ function parseHourlySchedule(hourlyData) {
   
   for (let hour = MIN_HOUR; hour <= MAX_HOUR; hour++) {
     const hourStr = hour.toString();
-    // Skip if hour data is missing
-    if (!(hourStr in hourlyData)) {
+    // Skip if hour data is missing - use hasOwnProperty for safe property check
+    if (!Object.prototype.hasOwnProperty.call(hourlyData, hourStr)) {
       logger.debug(`Hour ${hour} not found in schedule data`);
       continue;
     }
