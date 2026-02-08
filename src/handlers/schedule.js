@@ -2,6 +2,13 @@ import { getScheduleData } from '../services/schedule.js';
 import { backMenuKeyboard } from '../keyboards/inline.js';
 
 /**
+ * Escape special characters for MarkdownV2
+ */
+function escapeMarkdownV2(text) {
+  return text.replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');
+}
+
+/**
  * Format time intervals with bold styling
  */
 function formatIntervals(intervals) {
@@ -19,7 +26,8 @@ function formatIntervals(intervals) {
     }
     
     const hours = Math.round((endMinutes - startMinutes) / 60);
-    return `🪫 *${interval} (~${hours} год)*`;
+    const escapedInterval = escapeMarkdownV2(interval);
+    return `🪫 *${escapedInterval} \\(\\~${hours} год\\)*`;
   }).join('\n');
 }
 
@@ -32,15 +40,22 @@ function formatScheduleMessage(scheduleData, queue, isManualRequest = true) {
   let message = '';
   
   // Today's schedule
-  message += `💡 _Графік відключень *на сьогодні, ${today.date} (${today.dayOfWeek})*, для черги ${queue}:_\n\n`;
+  const todayDate = escapeMarkdownV2(today.date);
+  const todayDay = escapeMarkdownV2(today.dayOfWeek);
+  const queueEscaped = escapeMarkdownV2(queue);
+  
+  message += `💡 _Графік відключень *на сьогодні, ${todayDate} \\(${todayDay}\\)*, для черги ${queueEscaped}:_\n\n`;
   message += formatIntervals(today.intervals) + '\n\n';
-  message += `Загалом без світла: *~${today.totalHours} год*\n\n`;
+  message += `Загалом без світла: *\\~${today.totalHours} год*\n\n`;
   
   // Tomorrow's schedule
   if (tomorrow) {
-    message += `💡 _Графік відключень *на завтра, ${tomorrow.date} (${tomorrow.dayOfWeek})*, для черги ${queue}:_\n\n`;
+    const tomorrowDate = escapeMarkdownV2(tomorrow.date);
+    const tomorrowDay = escapeMarkdownV2(tomorrow.dayOfWeek);
+    
+    message += `💡 _Графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *~${tomorrow.totalHours} год*`;
+    message += `Загалом без світла: *\\~${tomorrow.totalHours} год*`;
   } else {
     message += `💡 Графік на завтра ще не опубліковано`;
   }
@@ -55,44 +70,57 @@ export function formatAutoPublishMessage(scheduleData, queue, changes) {
   const { today, tomorrow } = scheduleData;
   let message = '';
   
+  const todayDate = escapeMarkdownV2(today.date);
+  const todayDay = escapeMarkdownV2(today.dayOfWeek);
+  const queueEscaped = escapeMarkdownV2(queue);
+  
   // Випадок 1: Перша публікація на сьогодні
   if (changes.todayIsNew && !tomorrow) {
-    message += `💡 _Графік відключень *на сьогодні, ${today.date} (${today.dayOfWeek})*, для черги ${queue}:_\n\n`;
+    message += `💡 _Графік відключень *на сьогодні, ${todayDate} \\(${todayDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *~${today.totalHours} год*`;
+    message += `Загалом без світла: *\\~${today.totalHours} год*`;
   }
   // Випадок 2: Графік на сьогодні оновився
   else if (changes.todayChanged && !changes.tomorrowIsNew && !changes.tomorrowChanged) {
-    message += `💡 _Оновлено графік відключень *на сьогодні, ${today.date} (${today.dayOfWeek})*, для черги ${queue}:_\n\n`;
+    message += `💡 _Оновлено графік відключень *на сьогодні, ${todayDate} \\(${todayDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *~${today.totalHours} год*`;
+    message += `Загалом без світла: *\\~${today.totalHours} год*`;
   }
   // Випадок 3: З'явився графік на завтра + сьогодні без змін
   else if (changes.tomorrowIsNew && !changes.todayChanged && tomorrow) {
-    message += `💡 _З'явився графік відключень *на завтра, ${tomorrow.date} (${tomorrow.dayOfWeek})*, для черги ${queue}:_\n\n`;
+    const tomorrowDate = escapeMarkdownV2(tomorrow.date);
+    const tomorrowDay = escapeMarkdownV2(tomorrow.dayOfWeek);
+    
+    message += `💡 _З'явився графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *~${tomorrow.totalHours} год*\n\n`;
+    message += `Загалом без світла: *\\~${tomorrow.totalHours} год*\n\n`;
     message += `💡 _Графік на сьогодні *без змін:*_\n\n`;
     message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *~${today.totalHours} год*`;
+    message += `Загалом без світла: *\\~${today.totalHours} год*`;
   }
   // Випадок 4: З'явився графік на завтра + сьогодні теж оновився
   else if (changes.tomorrowIsNew && changes.todayChanged && tomorrow) {
-    message += `💡 _З'явився графік відключень *на завтра, ${tomorrow.date} (${tomorrow.dayOfWeek})*, для черги ${queue}:_\n\n`;
+    const tomorrowDate = escapeMarkdownV2(tomorrow.date);
+    const tomorrowDay = escapeMarkdownV2(tomorrow.dayOfWeek);
+    
+    message += `💡 _З'явився графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *~${tomorrow.totalHours} год*\n\n`;
+    message += `Загалом без світла: *\\~${tomorrow.totalHours} год*\n\n`;
     message += `💡 _Оновлено графік *на сьогодні:*_\n\n`;
     message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *~${today.totalHours} год*`;
+    message += `Загалом без світла: *\\~${today.totalHours} год*`;
   }
   // Випадок 5: Графік на завтра оновився
   else if (changes.tomorrowChanged && !changes.todayChanged && tomorrow) {
-    message += `💡 _Оновлено графік відключень *на завтра, ${tomorrow.date} (${tomorrow.dayOfWeek})*, для черги ${queue}:_\n\n`;
+    const tomorrowDate = escapeMarkdownV2(tomorrow.date);
+    const tomorrowDay = escapeMarkdownV2(tomorrow.dayOfWeek);
+    
+    message += `💡 _Оновлено графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *~${tomorrow.totalHours} год*\n\n`;
+    message += `Загалом без світла: *\\~${tomorrow.totalHours} год*\n\n`;
     message += `💡 _Графік на сьогодні *без змін:*_\n\n`;
     message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *~${today.totalHours} год*`;
+    message += `Загалом без світла: *\\~${today.totalHours} год*`;
   }
   
   return message;

@@ -6,7 +6,7 @@ import {
   getCheckInterval 
 } from '../services/schedule.js';
 import { formatAutoPublishMessage } from '../handlers/schedule.js';
-import { get } from '../storage/index.js';
+import { get, getAllUserIds } from '../storage/index.js';
 
 let scheduleCheckJob = null;
 let botInstance = null;
@@ -65,7 +65,6 @@ export async function restartScheduleChecker() {
 async function checkAllUsersSchedules() {
   try {
     // Get all user IDs from storage
-    // This is a simplified version - in production, iterate through all users
     const userIds = await getAllUserIds();
     
     for (const userId of userIds) {
@@ -171,14 +170,4 @@ async function publishSchedule(userData, message, scheduleData) {
   } catch (error) {
     console.error('Error publishing schedule:', error);
   }
-}
-
-/**
- * Get all user IDs from storage
- * This is a simplified mock - in production, implement proper user iteration
- */
-async function getAllUserIds() {
-  // TODO: Implement proper user listing from storage
-  // For now, return empty array - users will be added as they use the bot
-  return [];
 }

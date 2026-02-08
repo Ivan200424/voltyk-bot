@@ -59,7 +59,22 @@ export async function getUserData(userId) {
 }
 
 export async function setUserData(userId, data) {
+  // Track user ID in the list of all users
+  await addUserToList(userId);
   return await set(`user:${userId}`, data);
+}
+
+// User list helpers
+export async function addUserToList(userId) {
+  const userList = await get('user_list') || [];
+  if (!userList.includes(userId)) {
+    userList.push(userId);
+    await set('user_list', userList);
+  }
+}
+
+export async function getAllUserIds() {
+  return await get('user_list') || [];
 }
 
 // Wizard state
