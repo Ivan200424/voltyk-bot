@@ -13,6 +13,24 @@ function escapeMarkdownV2(text) {
 }
 
 /**
+ * Format duration in hours and minutes
+ * @param {number} totalMinutes - Total minutes
+ * @returns {string} Formatted duration (e.g., "2 год", "30 хв", "2 год 30 хв")
+ */
+function formatDuration(totalMinutes) {
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  
+  if (minutes === 0) {
+    return `${hours} год`;
+  } else if (hours === 0) {
+    return `${minutes} хв`;
+  } else {
+    return `${hours} год ${minutes} хв`;
+  }
+}
+
+/**
  * Calculate hours for a single interval
  * Returns hours with half-hour precision (e.g., "2.5 год" or "2 год 30 хв")
  */
@@ -30,16 +48,7 @@ function calculateIntervalHours(interval) {
   }
   
   const totalMinutes = endMinutes - startMinutes;
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  
-  if (minutes === 0) {
-    return `${hours} год`;
-  } else if (hours === 0) {
-    return `${minutes} хв`;
-  } else {
-    return `${hours} год ${minutes} хв`;
-  }
+  return formatDuration(totalMinutes);
 }
 
 /**
@@ -47,14 +56,8 @@ function calculateIntervalHours(interval) {
  * Takes a number like 2.5 and returns "2 год 30 хв" or "2.5 год"
  */
 function formatTotalHours(totalHours) {
-  const hours = Math.floor(totalHours);
-  const minutes = Math.round((totalHours - hours) * 60);
-  
-  if (minutes === 0) {
-    return `${hours} год`;
-  } else {
-    return `${hours} год ${minutes} хв`;
-  }
+  const totalMinutes = Math.round(totalHours * 60);
+  return formatDuration(totalMinutes);
 }
 
 /**

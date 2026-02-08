@@ -162,6 +162,8 @@ function parseIntervalsFromHourlyData(hourlyData) {
     const endM = outage.end % 60;
     
     // Handle midnight: 24:00 should be displayed as 00:00
+    // This is the standard format used in Ukrainian schedule displays
+    // where 00:00 represents midnight of the next day
     if (endH === 24 && endM === 0) {
       endH = 0;
     }
