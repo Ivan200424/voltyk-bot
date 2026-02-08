@@ -8,6 +8,7 @@ const DAYS_OF_WEEK = [
 
 const CACHE_TTL = 60; // Cache TTL in seconds
 const KYIV_UTC_OFFSET_MS = 2 * 60 * 60 * 1000; // Kyiv timezone offset: UTC+2 (no DST)
+const DAY_IN_MS = 24 * 60 * 60 * 1000; // One day in milliseconds
 
 /**
  * Generate hash from schedule content
@@ -189,6 +190,34 @@ function getKyivDate() {
 }
 
 /**
+ * Get current date string in Kyiv timezone (YYYY-MM-DD format)
+ * Used for calendar-aware hash comparison
+ */
+export function getKyivDateString() {
+  const now = new Date();
+  // Shift to Kyiv time (UTC+2) to get the correct date
+  const kyivTime = new Date(now.getTime() + KYIV_UTC_OFFSET_MS);
+  const year = kyivTime.getUTCFullYear();
+  const month = String(kyivTime.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(kyivTime.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Get yesterday's date string in Kyiv timezone (YYYY-MM-DD format)
+ * Used for detecting day rollover
+ */
+function getKyivYesterdayString() {
+  const now = new Date();
+  // Shift to Kyiv time (UTC+2) and subtract one day
+  const kyivYesterday = new Date(now.getTime() + KYIV_UTC_OFFSET_MS - DAY_IN_MS);
+  const year = kyivYesterday.getUTCFullYear();
+  const month = String(kyivYesterday.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(kyivYesterday.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
  * Get date timestamp for schedule data lookup
  * The outage-data-ua repo stores dates at 22:00 UTC (which is midnight Kyiv time)
  * Note: Ukraine is permanently UTC+2 (no DST since 2011)
@@ -356,25 +385,28 @@ export async function getScheduleHashes(userId) {
   return await get(`schedule_hashes:${userId}`) || {
     todayHash: null,
     tomorrowHash: null,
-    lastCheck: null
+    lastCheck: null,
+    date: null
   };
 }
 
 /**
  * Update cached schedule hashes
  */
-export async function updateScheduleHashes(userId, todayHash, tomorrowHash) {
+export async function updateScheduleHashes(userId, todayHash, tomorrowHash, date) {
   await set(`schedule_hashes:${userId}`, {
     todayHash,
     tomorrowHash,
-    lastCheck: Date.now()
+    lastCheck: Date.now(),
+    date
   });
 }
 
 /**
  * Determine what changed between old and new schedules
+ * Handles calendar-aware change detection with tomorrow→today hash promotion
  */
-export function detectScheduleChanges(oldHashes, newSchedule) {
+export function detectScheduleChanges(oldHashes, newSchedule, currentDate) {
   const changes = {
     todayChanged: false,
     todayIsNew: false,
@@ -382,11 +414,34 @@ export function detectScheduleChanges(oldHashes, newSchedule) {
     tomorrowIsNew: false
   };
   
-  // Check today's schedule
+  // Get yesterday's date string for comparison
+  const yesterdayDate = getKyivYesterdayString();
+  
+  // Detect if this is a completely new day (date mismatch)
+  const isNewDay = !oldHashes.date || oldHashes.date !== currentDate;
+  const wasYesterday = oldHashes.date === yesterdayDate;
+  
+  // Check today's schedule with date-aware logic
   if (!oldHashes.todayHash) {
+    // First time checking schedule
     changes.todayIsNew = true;
-  } else if (oldHashes.todayHash !== newSchedule.today.hash) {
-    changes.todayChanged = true;
+  } else if (isNewDay && wasYesterday && oldHashes.tomorrowHash) {
+    // Day rollover: yesterday's "tomorrow" becomes today
+    // Compare old tomorrowHash with new todayHash
+    if (oldHashes.tomorrowHash !== newSchedule.today.hash) {
+      // Today's schedule differs from what was published as "tomorrow" yesterday
+      changes.todayChanged = true;
+    }
+    // If they match, today's schedule was already published yesterday as "tomorrow"
+    // so todayChanged = false and todayIsNew = false (no notification needed)
+  } else if (isNewDay && !wasYesterday) {
+    // Date is from before yesterday or missing - treat as completely new
+    changes.todayIsNew = true;
+  } else {
+    // Same day - check if hash changed
+    if (oldHashes.todayHash !== newSchedule.today.hash) {
+      changes.todayChanged = true;
+    }
   }
   
   // Check tomorrow's schedule
