@@ -1,4 +1,4 @@
-import { config } from '../config.js';
+import { config } from './config.js';
 
 /**
  * Escape HTML special characters for safe display in Telegram messages
