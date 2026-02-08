@@ -49,18 +49,19 @@ function getQueueKeyboard(page = 1, allQueues = QUEUES, region = null) {
     queuesToShow = extraQueues;
   }
   
-  // Add queues 3 per row
+  // Add queues: 3 per row for page 1, 5 per row for page 2
+  const columnsPerRow = page === 2 ? 5 : 3;
   let count = 0;
   for (const queue of queuesToShow) {
     keyboard.text(queue, `queue_${queue}`);
     count++;
-    if (count % 3 === 0) {
+    if (count % columnsPerRow === 0) {
       keyboard.row();
     }
   }
   
   // Add back button
-  if (count % 3 !== 0) {
+  if (count % columnsPerRow !== 0) {
     keyboard.row();
   }
   
@@ -307,17 +308,18 @@ function getQueueChangeKeyboard(page = 1, allQueues = QUEUES, region = null) {
     queuesToShow = extraQueues;
   }
   
-  // Add queues 3 per row
+  // Add queues: 3 per row for page 1, 5 per row for page 2
+  const columnsPerRow = page === 2 ? 5 : 3;
   let count = 0;
   for (const queue of queuesToShow) {
     keyboard.text(queue, `queue_${queue}`);
     count++;
-    if (count % 3 === 0) {
+    if (count % columnsPerRow === 0) {
       keyboard.row();
     }
   }
   
-  if (count % 3 !== 0) {
+  if (count % columnsPerRow !== 0) {
     keyboard.row();
   }
   
