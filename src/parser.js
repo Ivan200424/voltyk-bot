@@ -30,11 +30,31 @@ function parseScheduleData(data) {
 }
 
 /**
+ * Create a Date object from a period's start/end time
+ * @param {Date} baseDate - Base date for the period
+ * @param {number} time - Time as a decimal (e.g., 13.5 for 13:30)
+ * @returns {Date} Date object with the specified time
+ */
+function createDateFromPeriod(baseDate, time) {
+  return new Date(
+    baseDate.getFullYear(),
+    baseDate.getMonth(),
+    baseDate.getDate(),
+    Math.floor(time),
+    (time % 1) * 60
+  );
+}
+
+/**
  * Parse schedule for a specific queue
  * Constructs GPV key and parses hourly schedule data
+ * @param {Object} data - Schedule data from API
+ * @param {string} queue - Queue identifier (e.g., "1.1", "2.1") - already includes both major and minor components
+ * @returns {Object} Parsed queue data with events array
  */
 function parseScheduleForQueue(data, queue) {
   try {
+    // Construct GPV key: queue "1.1" becomes "GPV1.1"
     const queueKey = `GPV${queue}`;
     
     // Validate data structure
@@ -90,8 +110,8 @@ function parseScheduleForQueue(data, queue) {
     todayParsed.planned.forEach(period => {
       events.push({
         type: 'outage',
-        start: new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate(), Math.floor(period.start), (period.start % 1) * 60),
-        end: new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate(), Math.floor(period.end), (period.end % 1) * 60),
+        start: createDateFromPeriod(todayDate, period.start),
+        end: createDateFromPeriod(todayDate, period.end),
         isPossible: false,
       });
     });
@@ -99,8 +119,8 @@ function parseScheduleForQueue(data, queue) {
     todayParsed.possible.forEach(period => {
       events.push({
         type: 'outage',
-        start: new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate(), Math.floor(period.start), (period.start % 1) * 60),
-        end: new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate(), Math.floor(period.end), (period.end % 1) * 60),
+        start: createDateFromPeriod(todayDate, period.start),
+        end: createDateFromPeriod(todayDate, period.end),
         isPossible: true,
       });
     });
@@ -112,8 +132,8 @@ function parseScheduleForQueue(data, queue) {
       tomorrowParsed.planned.forEach(period => {
         events.push({
           type: 'outage',
-          start: new Date(tomorrowDateObj.getFullYear(), tomorrowDateObj.getMonth(), tomorrowDateObj.getDate(), Math.floor(period.start), (period.start % 1) * 60),
-          end: new Date(tomorrowDateObj.getFullYear(), tomorrowDateObj.getMonth(), tomorrowDateObj.getDate(), Math.floor(period.end), (period.end % 1) * 60),
+          start: createDateFromPeriod(tomorrowDateObj, period.start),
+          end: createDateFromPeriod(tomorrowDateObj, period.end),
           isPossible: false,
         });
       });
@@ -121,8 +141,8 @@ function parseScheduleForQueue(data, queue) {
       tomorrowParsed.possible.forEach(period => {
         events.push({
           type: 'outage',
-          start: new Date(tomorrowDateObj.getFullYear(), tomorrowDateObj.getMonth(), tomorrowDateObj.getDate(), Math.floor(period.start), (period.start % 1) * 60),
-          end: new Date(tomorrowDateObj.getFullYear(), tomorrowDateObj.getMonth(), tomorrowDateObj.getDate(), Math.floor(period.end), (period.end % 1) * 60),
+          start: createDateFromPeriod(tomorrowDateObj, period.start),
+          end: createDateFromPeriod(tomorrowDateObj, period.end),
           isPossible: true,
         });
       });
@@ -141,6 +161,7 @@ function parseScheduleForQueue(data, queue) {
     logger.error(`Error parsing schedule for queue ${queue}:`, error);
     return {
       queue,
+      queueKey: `GPV${queue}`,
       events: [],
       hasData: false,
       error: error.message,
@@ -157,7 +178,14 @@ function parseHourlySchedule(hourlyData) {
   const possible = [];
   
   for (let hour = MIN_HOUR; hour <= MAX_HOUR; hour++) {
-    const factValue = hourlyData[hour];
+    const hourStr = hour.toString();
+    // Skip if hour data is missing
+    if (!(hourStr in hourlyData)) {
+      logger.debug(`Hour ${hour} not found in schedule data`);
+      continue;
+    }
+    
+    const factValue = hourlyData[hourStr];
     
     if (factValue === 'no' || factValue === 'first' || factValue === 'second') {
       addOutagePeriod(planned, hour, factValue);

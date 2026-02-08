@@ -86,10 +86,7 @@ function formatScheduleMessage(queueData, region, queue) {
     message += `<b>Заплановані відключення:</b>\n\n`;
     
     plannedEvents.forEach((event, index) => {
-      const start = event.start;
-      const end = event.end;
-      
-      message += `${index + 1}. 🔴 ${formatDateTime(start)} - ${formatTime(end)}\n`;
+      message += `${index + 1}. 🔴 ${formatDateTime(event.start)} - ${formatTime(event.end)}\n`;
     });
   }
   
@@ -101,10 +98,7 @@ function formatScheduleMessage(queueData, region, queue) {
     message += `<b>Можливі відключення:</b>\n\n`;
     
     possibleEvents.forEach((event, index) => {
-      const start = event.start;
-      const end = event.end;
-      
-      message += `${index + 1}. ⚠️ ${formatDateTime(start)} - ${formatTime(end)}\n`;
+      message += `${index + 1}. ⚠️ ${formatDateTime(event.start)} - ${formatTime(event.end)}\n`;
     });
   }
   
