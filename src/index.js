@@ -1,4 +1,3 @@
-import { webhookCallback } from 'grammy';
 import { createServer } from 'http';
 import bot from './bot.js';
 import { config } from './config.js';
@@ -28,9 +27,6 @@ async function main() {
     const webhookUrl = `${domain}/webhook`;
     await bot.api.setWebhook(webhookUrl);
     console.log(`✅ Webhook set to: ${webhookUrl}`);
-    
-    // Create webhook handler with duplicate protection
-    const handleUpdate = webhookCallback(bot, 'http');
     
     const server = createServer(async (req, res) => {
       // Health check endpoint
@@ -69,26 +65,15 @@ async function main() {
               processedUpdates.delete(firstKey);
             }
             
-            // Create a mock request/response for grammY
-            const mockReq = {
-              method: 'POST',
-              url: '/webhook',
-              headers: req.headers,
-            };
+            // Process update directly through bot
+            await bot.handleUpdate(update);
             
-            const mockRes = {
-              writeHead: res.writeHead.bind(res),
-              end: res.end.bind(res),
-            };
-            
-            // Pass the update body directly
-            mockReq.body = update;
-            
-            await handleUpdate(mockReq, mockRes);
+            res.writeHead(200);
+            res.end('ok');
           } catch (error) {
             console.error('❌ Error processing update:', error);
-            res.writeHead(500);
-            res.end('Error');
+            res.writeHead(200); // Return 200 to prevent Telegram retries
+            res.end('ok');
           }
         });
         
