@@ -1,5 +1,5 @@
 const { InlineKeyboard } = require('grammy');
-const { REGIONS, REGION_CODES, QUEUES } = require('../constants/regions');
+const { REGIONS, REGION_CODES, QUEUES, KYIV_EXTRA_QUEUES } = require('../constants/regions');
 
 function getMainMenu(user) {
   const keyboard = new InlineKeyboard()
@@ -33,7 +33,7 @@ function getRegionKeyboard() {
   return keyboard;
 }
 
-function getQueueKeyboard() {
+function getQueueKeyboard(region) {
   const keyboard = new InlineKeyboard();
   
   // Add queues 3 per row
@@ -50,7 +50,35 @@ function getQueueKeyboard() {
   if (count % 3 !== 0) {
     keyboard.row();
   }
+  
+  // Кнопка "Інші черги →" тільки для Києва
+  if (region === 'kyiv') {
+    keyboard.text('Інші черги →', 'queues_page_extra').row();
+  }
+  
   keyboard.text('← Назад', 'back_to_region');
+  
+  return keyboard;
+}
+
+function getQueueKeyboardExtra() {
+  const keyboard = new InlineKeyboard();
+  
+  // Додаткові черги 7.1-60.1, по 3 в рядку
+  let count = 0;
+  for (const queue of KYIV_EXTRA_QUEUES) {
+    keyboard.text(queue, `queue_${queue}`);
+    count++;
+    if (count % 3 === 0) {
+      keyboard.row();
+    }
+  }
+  
+  if (count % 3 !== 0) {
+    keyboard.row();
+  }
+  
+  keyboard.text('← Назад', 'queues_page_main');
   
   return keyboard;
 }
@@ -267,7 +295,7 @@ function getRegionChangeKeyboard() {
   return keyboard;
 }
 
-function getQueueChangeKeyboard() {
+function getQueueChangeKeyboard(region) {
   const keyboard = new InlineKeyboard();
   
   // Add queues 3 per row
@@ -284,8 +312,36 @@ function getQueueChangeKeyboard() {
     keyboard.row();
   }
   
+  // Кнопка "Інші черги →" тільки для Києва
+  if (region === 'kyiv') {
+    keyboard.text('Інші черги →', 'queues_change_page_extra').row();
+  }
+  
   keyboard
     .text('← Назад', 'settings_region')
+    .text('⤴ Меню', 'back_to_main');
+  
+  return keyboard;
+}
+
+function getQueueChangeKeyboardExtra() {
+  const keyboard = new InlineKeyboard();
+  
+  let count = 0;
+  for (const queue of KYIV_EXTRA_QUEUES) {
+    keyboard.text(queue, `queue_${queue}`);
+    count++;
+    if (count % 3 === 0) {
+      keyboard.row();
+    }
+  }
+  
+  if (count % 3 !== 0) {
+    keyboard.row();
+  }
+  
+  keyboard
+    .text('← Назад', 'queues_change_page_main')
     .text('⤴ Меню', 'back_to_main');
   
   return keyboard;
@@ -301,6 +357,7 @@ module.exports = {
   getMainMenu,
   getRegionKeyboard,
   getQueueKeyboard,
+  getQueueKeyboardExtra,
   getWizardNotifyTargetKeyboard,
   getChannelCheckKeyboard,
   getChannelConfirmKeyboard,
@@ -323,5 +380,6 @@ module.exports = {
   getAdminPauseKeyboard,
   getRegionChangeKeyboard,
   getQueueChangeKeyboard,
+  getQueueChangeKeyboardExtra,
   getChannelDisconnectConfirmKeyboard,
 };

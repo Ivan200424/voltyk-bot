@@ -2,13 +2,14 @@ const { getUser, saveUser, updateUser } = require('../database/redis');
 const { setState, getState, clearState } = require('../state/stateManager');
 const { 
   getRegionKeyboard, 
-  getQueueKeyboard, 
+  getQueueKeyboard,
+  getQueueKeyboardExtra,
   getWizardNotifyTargetKeyboard,
   getChannelCheckKeyboard,
   getChannelConfirmKeyboard,
 } = require('../keyboards/inline');
 const { formatWelcomeMessage } = require('../formatter');
-const { REGIONS } = require('../constants/regions');
+const { REGIONS, KYIV_EXTRA_QUEUE_START, KYIV_EXTRA_QUEUE_END } = require('../constants/regions');
 const { safeEditMessage, safeAnswerCallback } = require('../utils/errorHandler');
 
 /**
@@ -89,7 +90,7 @@ async function handleWizardRegion(ctx) {
   
   await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
-    reply_markup: getQueueKeyboard(),
+    reply_markup: getQueueKeyboard(region),
   });
 }
 
@@ -372,7 +373,7 @@ async function handleWizardBack(ctx) {
     
     await safeEditMessage(ctx, message, {
       parse_mode: 'HTML',
-      reply_markup: getQueueKeyboard(),
+      reply_markup: getQueueKeyboard(wizardState.region),
     });
   }
 }
@@ -409,6 +410,52 @@ async function handleMyChatMember(ctx) {
   }
 }
 
+/**
+ * Handle queue page navigation - extra queues (wizard)
+ */
+async function handleQueuePageExtra(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const wizardState = await getState('wizard', chatId);
+  if (!wizardState || !wizardState.region) {
+    return await startWizard(ctx);
+  }
+  
+  // Only Kyiv region has extra queues
+  if (wizardState.region !== 'kyiv') {
+    await ctx.answerCallbackQuery({ text: '❌ Додаткові черги доступні тільки для регіону Київ', show_alert: true });
+    return await handleQueuePageMain(ctx);
+  }
+  
+  const message = `✅ Регіон обрано: <b>${REGIONS[wizardState.region].name}</b>\n\n<b>Крок 2:</b> Оберіть вашу чергу відключень\n<i>(Черги ${KYIV_EXTRA_QUEUE_START}–${KYIV_EXTRA_QUEUE_END})</i>`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getQueueKeyboardExtra(),
+  });
+}
+
+/**
+ * Handle queue page navigation - main queues (wizard)
+ */
+async function handleQueuePageMain(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const wizardState = await getState('wizard', chatId);
+  if (!wizardState || !wizardState.region) {
+    return await startWizard(ctx);
+  }
+  
+  const message = `✅ Регіон обрано: <b>${REGIONS[wizardState.region].name}</b>\n\n<b>Крок 2:</b> Оберіть вашу чергу відключень`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getQueueKeyboard(wizardState.region),
+  });
+}
+
 module.exports = {
   handleStart,
   handleWizardRegion,
@@ -420,4 +467,6 @@ module.exports = {
   handleChannelReject,
   handleWizardBack,
   handleMyChatMember,
+  handleQueuePageExtra,
+  handleQueuePageMain,
 };
