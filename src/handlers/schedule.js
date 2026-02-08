@@ -97,7 +97,6 @@ function formatScheduleMessage(scheduleData, queue, isManualRequest = true) {
     message += formatIntervals(tomorrow.intervals) + '\n\n';
     message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(tomorrow.totalHours))}*`;
   }
-  // If no tomorrow data, simply don't mention it at all
   
   return message;
 }
