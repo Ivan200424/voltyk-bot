@@ -36,7 +36,7 @@ export async function handleWizardRegion(ctx) {
   const text = `Оберіть свою чергу:`;
   
   await ctx.cleanAndEdit(text, {
-    reply_markup: queueKeyboard(),
+    reply_markup: queueKeyboard(true),
   });
   
   await ctx.answerCallbackQuery();
@@ -109,4 +109,44 @@ export async function handleWizardIpSkip(ctx) {
   await ctx.answerCallbackQuery();
   
   return await showMainMenu(ctx);
+}
+
+// Wizard back navigation handlers
+export async function handleWizardBack(ctx) {
+  const userId = ctx.from.id;
+  const backToStep = parseInt(ctx.callbackQuery.data.replace('wizard_back:', ''));
+  const wizardState = await getWizardState(userId);
+  
+  await ctx.answerCallbackQuery();
+  
+  if (backToStep === 1) {
+    // Back to region selection from queue selection
+    await setWizardState(userId, { step: 1 });
+    
+    const text = `👋 Вітаємо у Вольтику!
+
+Оберіть свій регіон:`;
+    
+    await ctx.cleanAndEdit(text, {
+      reply_markup: regionKeyboard(),
+    });
+  } else if (backToStep === 2) {
+    // Back to queue selection from notification selection
+    await setWizardState(userId, { step: 2, region: wizardState.region });
+    
+    const text = `Оберіть свою чергу:`;
+    
+    await ctx.cleanAndEdit(text, {
+      reply_markup: queueKeyboard(true),
+    });
+  } else if (backToStep === 3) {
+    // Back to notification selection from IP monitoring
+    await setWizardState(userId, { step: 3, queue: wizardState.queue });
+    
+    const text = `Куди надсилати сповіщення?`;
+    
+    await ctx.cleanAndEdit(text, {
+      reply_markup: notifyToKeyboard(),
+    });
+  }
 }

@@ -8,7 +8,8 @@ import {
   handleWizardQueue, 
   handleWizardNotifyTo, 
   handleWizardIpAdd, 
-  handleWizardIpSkip 
+  handleWizardIpSkip,
+  handleWizardBack
 } from './handlers/start.js';
 import { 
   handleMenu, 
@@ -72,6 +73,7 @@ bot.callbackQuery('notify_to:bot', handleWizardNotifyTo);
 bot.callbackQuery('notify_to:channel', handleWizardNotifyTo);
 bot.callbackQuery('ip:add', handleWizardIpAdd);
 bot.callbackQuery('ip:skip', handleWizardIpSkip);
+bot.callbackQuery(/^wizard_back:/, handleWizardBack);
 
 // Main menu callbacks
 bot.callbackQuery('menu', handleMenu);
