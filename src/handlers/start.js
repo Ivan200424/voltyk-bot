@@ -110,3 +110,53 @@ export async function handleWizardIpSkip(ctx) {
   
   return await showMainMenu(ctx);
 }
+
+export async function handleWizardBack(ctx) {
+  const userId = ctx.from.id;
+  const wizardState = await getWizardState(userId);
+  
+  if (!wizardState) {
+    await ctx.answerCallbackQuery({
+      text: '⚠️ Wizard state not found',
+    });
+    return;
+  }
+  
+  const currentStep = wizardState.step;
+  
+  // Go back to previous step
+  if (currentStep === 2) {
+    // Step 2 (queue) -> back to Step 1 (region)
+    await setWizardState(userId, { step: 1 });
+    
+    const text = `👋 Вітаємо у Вольтику!
+
+Оберіть свій регіон:`;
+    
+    await ctx.cleanAndEdit(text, {
+      reply_markup: regionKeyboard(),
+    });
+  } else if (currentStep === 3) {
+    // Step 3 (notification) -> back to Step 2 (queue)
+    const userData = await getUserData(userId);
+    await setWizardState(userId, { step: 2, region: userData.region });
+    
+    const text = `Оберіть свою чергу:`;
+    
+    await ctx.cleanAndEdit(text, {
+      reply_markup: queueKeyboard(),
+    });
+  } else if (currentStep === 4) {
+    // Step 4 (IP) -> back to Step 3 (notification)
+    const userData = await getUserData(userId);
+    await setWizardState(userId, { step: 3, queue: userData.queue });
+    
+    const text = `Куди надсилати сповіщення?`;
+    
+    await ctx.cleanAndEdit(text, {
+      reply_markup: notifyToKeyboard(),
+    });
+  }
+  
+  await ctx.answerCallbackQuery();
+}
