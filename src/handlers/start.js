@@ -9,7 +9,7 @@ const {
   getChannelConfirmKeyboard,
 } = require('../keyboards/inline');
 const { formatWelcomeMessage } = require('../formatter');
-const { REGIONS } = require('../constants/regions');
+const { REGIONS, KYIV_EXTRA_QUEUE_START, KYIV_EXTRA_QUEUE_END } = require('../constants/regions');
 const { safeEditMessage, safeAnswerCallback } = require('../utils/errorHandler');
 
 /**
@@ -422,7 +422,7 @@ async function handleQueuePageExtra(ctx) {
     return await startWizard(ctx);
   }
   
-  const message = `✅ Регіон обрано: <b>${REGIONS[wizardState.region].name}</b>\n\n<b>Крок 2:</b> Оберіть вашу чергу відключень\n<i>(Черги 7–60)</i>`;
+  const message = `✅ Регіон обрано: <b>${REGIONS[wizardState.region].name}</b>\n\n<b>Крок 2:</b> Оберіть вашу чергу відключень\n<i>(Черги ${KYIV_EXTRA_QUEUE_START}–${KYIV_EXTRA_QUEUE_END})</i>`;
   
   await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',

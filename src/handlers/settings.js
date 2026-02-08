@@ -11,7 +11,7 @@ const {
   getDeleteDataConfirmKeyboard,
   getDeleteDataFinalKeyboard,
 } = require('../keyboards/inline');
-const { REGIONS } = require('../constants/regions');
+const { REGIONS, KYIV_EXTRA_QUEUE_START, KYIV_EXTRA_QUEUE_END } = require('../constants/regions');
 const { isAdmin } = require('../utils');
 const { safeAnswerCallback, safeEditMessage } = require('../utils/errorHandler');
 
@@ -427,7 +427,7 @@ async function handleBackToMain(ctx) {
 async function handleQueueChangePageExtra(ctx) {
   await safeAnswerCallback(ctx);
   
-  const message = `Оберіть чергу:\n<i>(Черги 7–60)</i>`;
+  const message = `Оберіть чергу:\n<i>(Черги ${KYIV_EXTRA_QUEUE_START}–${KYIV_EXTRA_QUEUE_END})</i>`;
   
   await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
