@@ -1,6 +1,6 @@
 import { getScheduleData } from '../services/schedule.js';
 import { backMenuKeyboard } from '../keyboards/inline.js';
-import { setUserData } from '../storage/index.js';
+import { getUserData, setUserData } from '../storage/index.js';
 
 /**
  * Escape special characters for MarkdownV2
@@ -141,7 +141,8 @@ export function formatAutoPublishMessage(scheduleData, queue, changes) {
  * Handle schedule button click (manual request)
  */
 export async function handleSchedule(ctx) {
-  const userData = ctx.userData;
+  const userId = ctx.from.id;
+  const userData = await getUserData(userId);
   
   // Check if user has configured region and queue
   if (!userData.region || !userData.queue) {

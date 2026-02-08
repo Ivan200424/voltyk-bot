@@ -74,7 +74,12 @@ export async function handleRegionChangeFromSettings(ctx) {
     text: `📍 Регіон змінено на ${region}`,
   });
   
-  return await showMainMenu(ctx);
+  // Після вибору регіону → показати вибір черги
+  const text = `🔢 Оберіть нову чергу:`;
+  
+  return await ctx.cleanAndEdit(text, {
+    reply_markup: queueKeyboard(),
+  });
 }
 
 // Handle queue change from settings
