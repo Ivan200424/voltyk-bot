@@ -5,6 +5,7 @@ import { initStorage, closeStorage, getAllUserIds, getUserData, setUserData } fr
 import { initScheduleChecker, stopScheduleChecker } from './jobs/scheduleChecker.js';
 import { initChannelGuard, stopChannelGuard } from './jobs/channelGuard.js';
 import { migrateExistingChannel } from './services/channel.js';
+import { initPendingChannelsCleanup, stopPendingChannelsCleanup } from './handlers/start.js';
 
 // Track processed update IDs to prevent duplicate processing (LRU-style)
 const processedUpdates = new Map();
@@ -34,6 +35,9 @@ async function main() {
   
   // Initialize channel guard
   initChannelGuard(bot);
+  
+  // Initialize pending channels cleanup
+  initPendingChannelsCleanup();
   
   // Run one-time migration for existing channels
   await migrateExistingChannels(bot);
@@ -136,6 +140,9 @@ async function gracefulShutdown(signal) {
   
   // Stop channel guard
   stopChannelGuard();
+  
+  // Stop pending channels cleanup
+  stopPendingChannelsCleanup();
   
   // Stop bot
   try {

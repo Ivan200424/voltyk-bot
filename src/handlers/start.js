@@ -10,22 +10,47 @@ const pendingChannels = new Map();
 // 30 minutes TTL for pending channels (enough time for user to complete setup)
 const PENDING_CHANNEL_TTL = 30 * 60 * 1000;
 
-// Hourly cleanup of expired pending channels (prevents memory leaks)
-setInterval(() => {
-  const now = Date.now();
-  for (const [userId, data] of pendingChannels.entries()) {
-    if (now - data.timestamp > PENDING_CHANNEL_TTL) {
-      pendingChannels.delete(userId);
-    }
+// Cleanup interval reference (singleton to prevent multiple intervals)
+let cleanupInterval = null;
+
+/**
+ * Initialize cleanup task (called once from bot initialization)
+ */
+export function initPendingChannelsCleanup() {
+  if (cleanupInterval) {
+    return; // Already initialized
   }
-}, 60 * 60 * 1000); // Run every hour
+  
+  // Hourly cleanup of expired pending channels (prevents memory leaks)
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    for (const [userId, data] of pendingChannels.entries()) {
+      if (now - data.timestamp > PENDING_CHANNEL_TTL) {
+        pendingChannels.delete(userId);
+      }
+    }
+  }, 60 * 60 * 1000); // Run every hour
+  
+  console.log('✅ Pending channels cleanup initialized');
+}
+
+/**
+ * Stop cleanup task (for graceful shutdown)
+ */
+export function stopPendingChannelsCleanup() {
+  if (cleanupInterval) {
+    clearInterval(cleanupInterval);
+    cleanupInterval = null;
+    console.log('⏹️  Pending channels cleanup stopped');
+  }
+}
 
 export async function handleStart(ctx) {
   const userId = ctx.from.id;
   const userData = await getUserData(userId);
   
   // Check if wizard is already completed
-  if (userData.wizard_completed) {
+  if (userData.wizardCompleted) {
     return await showMainMenu(ctx);
   }
   
@@ -84,7 +109,7 @@ export async function handleWizardQueue(ctx) {
     });
   } else {
     // From settings - complete and return to main menu
-    userData.wizard_completed = true;
+    userData.wizardCompleted = true;
     await setUserData(userId, userData);
     await delWizardState(userId);
     await ctx.answerCallbackQuery({ text: '✅ Регіон і черга оновлено' });
@@ -100,7 +125,7 @@ export async function handleWizardNotifyBot(ctx) {
   // User chose bot notifications - complete wizard
   const userData = await getUserData(userId);
   userData.power_notify_target = 'bot';
-  userData.wizard_completed = true;
+  userData.wizardCompleted = true;
   userData.notifications_enabled = true;
   await setUserData(userId, userData);
   ctx.userData = userData;
@@ -188,7 +213,7 @@ export async function handleChannelConfirm(ctx) {
   userData.channel_name = channelData.channelName;
   userData.channel_status = 'active';
   userData.power_notify_target = 'channel';
-  userData.wizard_completed = true;
+  userData.wizardCompleted = true;
   userData.notifications_enabled = true;
   await setUserData(userId, userData);
   ctx.userData = userData;

@@ -21,7 +21,7 @@ export function escapeMarkdown(text) {
   const specialChars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!'];
   let escaped = String(text);
   for (const char of specialChars) {
-    escaped = escaped.replace(new RegExp('\\' + char, 'g'), '\\' + char);
+    escaped = escaped.split(char).join('\\' + char);
   }
   return escaped;
 }

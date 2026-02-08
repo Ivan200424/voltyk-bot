@@ -475,6 +475,7 @@ export async function handleAdminGrowth(ctx) {
   
   // Count users by creation date (if we have that data)
   const today = new Date();
+  const todayStart = new Date(today).setHours(0, 0, 0, 0);
   const thisWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
   const thisMonth = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
   
@@ -486,7 +487,7 @@ export async function handleAdminGrowth(ctx) {
     const userData = await getUserData(uid);
     if (userData.created_at) {
       const createdDate = new Date(userData.created_at);
-      if (createdDate >= today.setHours(0, 0, 0, 0)) {
+      if (createdDate >= todayStart) {
         todayCount++;
       }
       if (createdDate >= thisWeek) {
