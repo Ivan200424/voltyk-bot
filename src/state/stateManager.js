@@ -25,6 +25,10 @@ export async function getState(userId, type) {
 
 /**
  * Set state for a user
+ * @param {number} userId - User ID
+ * @param {string} type - State type
+ * @param {Object} state - State data
+ * @param {number} ttl - Time to live in seconds (default: 1 hour)
  */
 export async function setState(userId, type, state, ttl = 3600) {
   const key = `state:${type}:${userId}`;

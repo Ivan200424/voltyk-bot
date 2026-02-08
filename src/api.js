@@ -14,6 +14,13 @@ const CACHE_TTL = 60; // Cache TTL in seconds
  */
 export async function fetchScheduleData(region) {
   try {
+    // Validate region parameter against known values
+    const validRegions = Object.values(config.regionSlugs);
+    if (!validRegions.includes(region)) {
+      console.error(`Invalid region parameter: ${region}`);
+      return null;
+    }
+    
     // Check cache first
     const cacheKey = `schedule_json:${region}`;
     let jsonData = await get(cacheKey);

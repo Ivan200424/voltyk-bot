@@ -82,8 +82,8 @@ export async function getUserData(userId) {
     power_off_text: null,          // Custom "power off" text
     power_on_text: null,           // Custom "power on" text
     last_start_message_id: null,   // Last /start message ID for editing
-    created_at: null,
-    updated_at: null,
+    created_at: Date.now(),        // User creation timestamp
+    updated_at: Date.now(),        // Last update timestamp
   };
 }
 

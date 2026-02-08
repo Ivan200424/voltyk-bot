@@ -8,8 +8,9 @@
 function escapeMarkdownV2(text) {
   const specialChars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!'];
   let escaped = text;
+  // Using replaceAll for better performance
   for (const char of specialChars) {
-    escaped = escaped.split(char).join('\\' + char);
+    escaped = escaped.replaceAll(char, '\\' + char);
   }
   return escaped;
 }

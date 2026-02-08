@@ -7,10 +7,10 @@ import { REGION_CODE_TO_NAME } from '../constants/regions.js';
 // Pending channels map: userId -> { channelId, channelTitle, channelName, timestamp }
 const pendingChannels = new Map();
 
-// 30 minutes TTL for pending channels
+// 30 minutes TTL for pending channels (enough time for user to complete setup)
 const PENDING_CHANNEL_TTL = 30 * 60 * 1000;
 
-// Hourly cleanup of expired pending channels
+// Hourly cleanup of expired pending channels (prevents memory leaks)
 setInterval(() => {
   const now = Date.now();
   for (const [userId, data] of pendingChannels.entries()) {
@@ -211,7 +211,11 @@ export async function handleChannelConfirm(ctx) {
   
   // Show main menu after 2 seconds
   setTimeout(async () => {
-    await showMainMenu(ctx);
+    try {
+      await showMainMenu(ctx);
+    } catch (error) {
+      console.error('Error showing main menu:', error);
+    }
   }, 2000);
 }
 
