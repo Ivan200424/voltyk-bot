@@ -68,7 +68,15 @@ function startReconnectLoop() {
   if (reconnectInterval) return; // Already running
   
   reconnectInterval = setInterval(() => {
-    if (!redisAvailable && client) {
+    // Stop trying if Redis is available
+    if (redisAvailable) {
+      clearInterval(reconnectInterval);
+      reconnectInterval = null;
+      console.log('✅ Redis reconnection loop stopped (Redis available)');
+      return;
+    }
+    
+    if (client) {
       console.log('🔄 Спроба перепідключення до Redis...');
       client.connect().catch(err => {
         console.error('❌ Не вдалося перепідключитись до Redis:', err.message);
@@ -793,9 +801,16 @@ async function incrementStat(field, count = 1) {
   // Use in-memory fallback if Redis is unavailable
   if (!redisAvailable) {
     const today = new Date().toISOString().split('T')[0];
+    
+    // Update daily stats
     const dailyStats = inMemoryStorage.stats.get(today) || {};
     dailyStats[field] = (dailyStats[field] || 0) + count;
     inMemoryStorage.stats.set(today, dailyStats);
+    
+    // Also update total stats for consistency
+    const currentTotal = inMemoryStorage.totalStats.get(field) || 0;
+    inMemoryStorage.totalStats.set(field, currentTotal + count);
+    
     return true;
   }
   
