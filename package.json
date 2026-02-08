@@ -8,15 +8,15 @@
     "dev": "node --watch src/index.js"
   },
   "dependencies": {
-    "grammy": "^1.39.3",
     "@grammyjs/auto-retry": "^2.0.2",
     "@grammyjs/runner": "^2.0.3",
-    "@grammyjs/transformer-throttler": "^2.0.1",
-    "ioredis": "^5.4.1",
+    "@grammyjs/transformer-throttler": "^1.2.1",
+    "axios": "^1.13.5",
+    "dotenv": "^16.4.5",
     "express": "^4.21.0",
-    "axios": "^1.7.9",
-    "node-cron": "^3.0.3",
-    "dotenv": "^16.4.5"
+    "grammy": "^1.39.3",
+    "ioredis": "^5.4.1",
+    "node-cron": "^3.0.3"
   },
   "engines": {
     "node": ">=20.0.0"

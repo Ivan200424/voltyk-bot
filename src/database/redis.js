@@ -64,7 +64,7 @@ async function saveUser(chatId, userData) {
     };
     
     // Store user hash
-    pipeline.hmset(`user:${chatId}`, dataToStore);
+    pipeline.hset(`user:${chatId}`, dataToStore);
     
     // Add to global users set
     pipeline.sadd('users:all', String(chatId));
@@ -98,7 +98,7 @@ async function updateUser(chatId, fields) {
       fieldsToStore.isActive = String(fieldsToStore.isActive);
     }
     
-    await client.hmset(`user:${chatId}`, fieldsToStore);
+    await client.hset(`user:${chatId}`, fieldsToStore);
     
     // Update region sets if region or queue changed
     if (fields.region || fields.queue) {
@@ -223,7 +223,7 @@ async function saveState(type, chatId, data, ttlSeconds = 86400) {
       dataToStore[k] = typeof v === 'object' ? JSON.stringify(v) : String(v);
     }
     
-    pipeline.hmset(key, dataToStore);
+    pipeline.hset(key, dataToStore);
     pipeline.expire(key, ttlSeconds);
     
     await pipeline.exec();
@@ -319,7 +319,7 @@ async function saveChannel(channelId, data) {
       createdAt: data.createdAt ? String(data.createdAt) : String(Date.now()),
     };
     
-    pipeline.hmset(`channel:${channelId}`, dataToStore);
+    pipeline.hset(`channel:${channelId}`, dataToStore);
     pipeline.sadd('channels:all', String(channelId));
     
     if (data.chatId) {

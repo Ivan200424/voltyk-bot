@@ -46,7 +46,7 @@ async function handleChannelSetup(ctx) {
   // Set channel setup state
   await setState('pending_channel', chatId, {
     fromWizard: false,
-  }, 1800);
+  });
   
   const message = `📺 <b>Підключення каналу</b>
 

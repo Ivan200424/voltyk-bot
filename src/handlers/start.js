@@ -207,7 +207,7 @@ async function handleWizardNotifyChannel(ctx) {
   // Set channel setup state
   await setState('pending_channel', chatId, {
     fromWizard: true,
-  }, 1800);
+  });
   
   const message = `📺 <b>Підключення каналу</b>
 
@@ -402,7 +402,7 @@ async function handleMyChatMember(ctx) {
         channelId: chat.id,
         title: chat.title,
         username: chat.username || null,
-      }, 1800);
+      });
       
       console.log(`✅ Channel detected for user ${chatId}: ${chat.title} (${chat.id})`);
     }
