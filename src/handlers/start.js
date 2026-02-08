@@ -10,6 +10,7 @@ const {
 const { formatWelcomeMessage } = require('../formatter');
 const { REGIONS, QUEUES, KYIV_EXTRA_QUEUES } = require('../constants/regions');
 const { safeEditMessage, safeAnswerCallback } = require('../utils/errorHandler');
+const { cleanReply } = require('../utils/chatCleaner');
 
 /**
  * Handle /start command - Entry point for new and existing users
@@ -25,7 +26,7 @@ async function handleStart(ctx) {
     const { formatMainMenu } = require('../formatter');
     const { getMainMenu } = require('../keyboards/inline');
     
-    await ctx.reply(formatMainMenu(user), {
+    await cleanReply(ctx, formatMainMenu(user), {
       parse_mode: 'HTML',
       reply_markup: getMainMenu(user),
     });
@@ -49,7 +50,7 @@ async function startWizard(ctx) {
   });
   
   // Send welcome message with region selection
-  await ctx.reply(formatWelcomeMessage(), {
+  await cleanReply(ctx, formatWelcomeMessage(), {
     parse_mode: 'HTML',
     reply_markup: getRegionKeyboard(),
   });

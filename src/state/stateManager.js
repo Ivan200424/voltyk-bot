@@ -8,6 +8,7 @@ const STATE_TTLS = {
   pending_channel: 1800, // 30 minutes
   lastMenuMessages: 86400,
   channel_setup: 3600,  // 1 hour
+  lastBotMessage: 86400 * 7,  // 7 days - remember last bot message for a week
 };
 
 async function setState(type, chatId, data) {

@@ -1,3 +1,5 @@
+const { cleanReply, cleanEdit } = require('./chatCleaner');
+
 async function safeSendMessage(bot, chatId, text, options = {}) {
   try {
     return await bot.api.sendMessage(chatId, text, options);
@@ -9,7 +11,15 @@ async function safeSendMessage(bot, chatId, text, options = {}) {
 
 async function safeEditMessage(ctx, text, options = {}) {
   try {
-    return await ctx.editMessageText(text, options);
+    const result = await ctx.editMessageText(text, options);
+    
+    // Track this message as the last bot message
+    if (ctx.callbackQuery && ctx.callbackQuery.message && ctx.from) {
+      const { saveLastBotMessageId } = require('./chatCleaner');
+      await saveLastBotMessageId(ctx.from.id, ctx.callbackQuery.message.message_id);
+    }
+    
+    return result;
   } catch (error) {
     console.error(`Error editing message:`, error.message);
     return null;
@@ -43,10 +53,30 @@ async function safeAnswerCallback(ctx, text = '', options = {}) {
   }
 }
 
+async function safeCleanReply(ctx, text, options = {}) {
+  try {
+    return await cleanReply(ctx, text, options);
+  } catch (error) {
+    console.error(`Error in safeCleanReply:`, error.message);
+    return null;
+  }
+}
+
+async function safeCleanEdit(ctx, text, options = {}) {
+  try {
+    return await cleanEdit(ctx, text, options);
+  } catch (error) {
+    console.error(`Error in safeCleanEdit:`, error.message);
+    return null;
+  }
+}
+
 module.exports = {
   safeSendMessage,
   safeEditMessage,
   safeDeleteMessage,
   safeSendPhoto,
   safeAnswerCallback,
+  safeCleanReply,
+  safeCleanEdit,
 };

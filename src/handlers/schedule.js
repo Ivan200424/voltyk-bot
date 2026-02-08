@@ -4,6 +4,7 @@ const { parseScheduleData, getQueueSchedule, getCurrentStatus } = require('../pa
 const { formatScheduleMessage, formatTimerMessage, formatMainMenu } = require('../formatter');
 const { getMainMenu, getMenuKeyboard } = require('../keyboards/inline');
 const { safeAnswerCallback } = require('../utils/errorHandler');
+const { cleanReply } = require('../utils/chatCleaner');
 
 /**
  * Handle /schedule command - Show outage schedule
@@ -39,7 +40,7 @@ async function handleSchedule(ctx) {
         reply_markup: getMenuKeyboard(),
       });
     } else {
-      await ctx.reply(message, { 
+      await cleanReply(ctx, message, { 
         parse_mode: 'HTML',
         reply_markup: getMenuKeyboard(),
       });
@@ -56,7 +57,7 @@ async function handleSchedule(ctx) {
       reply_markup: getMenuKeyboard(),
     });
   } else {
-    await ctx.reply(message, {
+    await cleanReply(ctx, message, {
       parse_mode: 'HTML',
       reply_markup: getMenuKeyboard(),
     });
@@ -97,7 +98,7 @@ async function handleTimer(ctx) {
         reply_markup: getMenuKeyboard(),
       });
     } else {
-      await ctx.reply(message, {
+      await cleanReply(ctx, message, {
         parse_mode: 'HTML',
         reply_markup: getMenuKeyboard(),
       });
@@ -117,7 +118,7 @@ async function handleTimer(ctx) {
       reply_markup: getMenuKeyboard(),
     });
   } else {
-    await ctx.reply(message, {
+    await cleanReply(ctx, message, {
       parse_mode: 'HTML',
       reply_markup: getMenuKeyboard(),
     });
@@ -163,7 +164,7 @@ async function handleStats(ctx) {
     if (ctx.callbackQuery) {
       await ctx.editMessageText(message, { parse_mode: 'HTML' });
     } else {
-      await ctx.reply(message, { parse_mode: 'HTML' });
+      await cleanReply(ctx, message, { parse_mode: 'HTML' });
     }
     return;
   }
@@ -216,7 +217,7 @@ async function handleHelp(ctx) {
       reply_markup: getMenuKeyboard(),
     });
   } else {
-    await ctx.reply(message, {
+    await cleanReply(ctx, message, {
       parse_mode: 'HTML',
       reply_markup: getMenuKeyboard(),
     });

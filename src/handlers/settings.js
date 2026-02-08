@@ -15,6 +15,7 @@ const { REGIONS, QUEUES, KYIV_EXTRA_QUEUES } = require('../constants/regions');
 const { isAdmin } = require('../utils');
 const { safeAnswerCallback, safeEditMessage } = require('../utils/errorHandler');
 const { formatMainMenu } = require('../formatter');
+const { cleanReply } = require('../utils/chatCleaner');
 
 /**
  * Handle /settings command
@@ -33,7 +34,7 @@ async function handleSettings(ctx) {
     if (ctx.callbackQuery) {
       await ctx.editMessageText(message, { parse_mode: 'HTML' });
     } else {
-      await ctx.reply(message, { parse_mode: 'HTML' });
+      await cleanReply(ctx, message, { parse_mode: 'HTML' });
     }
     return;
   }
@@ -55,7 +56,7 @@ async function handleSettings(ctx) {
       reply_markup: keyboard,
     });
   } else {
-    await ctx.reply(message, {
+    await cleanReply(ctx, message, {
       parse_mode: 'HTML',
       reply_markup: keyboard,
     });
