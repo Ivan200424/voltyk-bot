@@ -191,7 +191,9 @@ export async function handleSchedule(ctx) {
     // Send photo with schedule
     // Note: Using placeholder until actual outage-data-ua integration is complete
     // In production, use: scheduleData.today.imageUrl
-    const imageUrl = scheduleData.today.imageUrl || 'https://via.placeholder.com/800x600.png?text=Schedule+Graph';
+    const baseImageUrl = scheduleData.today.imageUrl || 'https://via.placeholder.com/800x600.png?text=Schedule+Graph';
+    // Add cache-busting parameter to force Telegram to fetch fresh image
+    const imageUrl = baseImageUrl.includes('?') ? `${baseImageUrl}&t=${Date.now()}` : `${baseImageUrl}?t=${Date.now()}`;
     
     const sentMessage = await ctx.replyWithPhoto(
       imageUrl,
