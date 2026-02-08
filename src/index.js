@@ -85,9 +85,43 @@ async function setupWebhook(bot) {
     res.send('Voltyk Bot is running');
   });
   
+  // Simple in-memory rate limiter for health checks
+  const healthCheckLimiter = new Map();
+  const HEALTH_CHECK_LIMIT = 10; // Max 10 requests per minute per IP
+  const HEALTH_CHECK_WINDOW = 60000; // 1 minute
+  
   // Health check with details
   app.get('/health', async (req, res) => {
     try {
+      // Basic rate limiting
+      const clientIp = req.ip || req.connection.remoteAddress;
+      const now = Date.now();
+      
+      if (!healthCheckLimiter.has(clientIp)) {
+        healthCheckLimiter.set(clientIp, { count: 1, resetAt: now + HEALTH_CHECK_WINDOW });
+      } else {
+        const limiter = healthCheckLimiter.get(clientIp);
+        if (now > limiter.resetAt) {
+          // Reset window
+          limiter.count = 1;
+          limiter.resetAt = now + HEALTH_CHECK_WINDOW;
+        } else {
+          limiter.count++;
+          if (limiter.count > HEALTH_CHECK_LIMIT) {
+            return res.status(429).json({ status: 'error', error: 'Too many requests' });
+          }
+        }
+      }
+      
+      // Clean up old entries periodically
+      if (healthCheckLimiter.size > 1000) {
+        for (const [ip, data] of healthCheckLimiter.entries()) {
+          if (now > data.resetAt) {
+            healthCheckLimiter.delete(ip);
+          }
+        }
+      }
+      
       const redis = getRedisClient();
       const redisPing = await redis.ping();
       const userCount = await getUserCount();
