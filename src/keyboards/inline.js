@@ -55,10 +55,8 @@ export function ipMonitoringKeyboard() {
 // Main menu keyboard
 export function mainMenuKeyboard() {
   return new InlineKeyboard()
-    .text('📋 Подивитись графік', 'schedule').row()
-    .text('📡 Моніторинг', 'monitoring').row()
-    .text('📺 Канал', 'channel').row()
-    .text('⚙️ Налаштування', 'settings').row()
+    .text('📋 Графік', 'schedule').text('📡 Моніторинг', 'monitoring').row()
+    .text('📺 Канал', 'channel').text('⚙️ Налаштування', 'settings').row()
     .text('❓ Допомога', 'help');
 }
 
@@ -66,7 +64,6 @@ export function mainMenuKeyboard() {
 export function settingsKeyboard() {
   return new InlineKeyboard()
     .text('📍 Змінити регіон', 'change_region').row()
-    .text('🔢 Змінити чергу', 'change_queue').row()
     .text('🔔 Сповіщення', 'toggle_notifications').row()
     .text('← Назад', 'back').text('⤴ Меню', 'menu');
 }
