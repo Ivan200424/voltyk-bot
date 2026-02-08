@@ -43,7 +43,17 @@ import {
 } from './handlers/settings.js';
 import { handleFallbackMessage, handleUnknownCallback } from './handlers/fallback.js';
 import { getWizardState } from './state/stateManager.js';
-import { handleAdminPanel } from './handlers/admin.js';
+import { 
+  handleAdminPanel,
+  handleAdminStats,
+  handleAdminSystem,
+  handleAdminIntervals,
+  handleAdminDebounce,
+  handleAdminPause,
+  handleIntervalChange,
+  handleDebounceChange,
+  handlePauseChange,
+} from './handlers/admin.js';
 import {
   handleChannelInput,
   handleChannelNameInput,
@@ -155,7 +165,22 @@ bot.callbackQuery('channel_skip_description', (ctx) => handleChannelSkipDescript
 
 // Admin panel callbacks
 bot.callbackQuery('admin_panel', handleAdminPanel);
-bot.callbackQuery(/^admin_/, handleAdminPanel); // All admin callbacks handled by admin panel
+bot.callbackQuery('admin_stats', handleAdminStats);
+bot.callbackQuery('admin_system', handleAdminSystem);
+bot.callbackQuery('admin_intervals', handleAdminIntervals);
+bot.callbackQuery('admin_debounce', handleAdminDebounce);
+bot.callbackQuery('admin_pause', handleAdminPause);
+bot.callbackQuery(/^interval_/, handleIntervalChange);
+bot.callbackQuery(/^debounce_\d+$/, handleDebounceChange);
+bot.callbackQuery(/^pause_/, handlePauseChange);
+
+// Catch remaining admin_ callbacks as placeholders
+bot.callbackQuery(/^admin_/, async (ctx) => {
+  await ctx.answerCallbackQuery({
+    text: '🚧 Ця функція ще в розробці',
+    show_alert: true,
+  });
+});
 
 // Help callback
 bot.callbackQuery('help', handleHelp);

@@ -26,6 +26,9 @@ async function main() {
   const botInfo = bot.botInfo;
   console.log(`✅ Bot @${botInfo.username} is ready`);
   
+  // Register bot commands
+  await registerBotCommands(bot);
+  
   // Initialize schedule checker
   initScheduleChecker(bot);
   
@@ -151,6 +154,28 @@ async function gracefulShutdown(signal) {
 
 process.once('SIGINT', () => gracefulShutdown('SIGINT'));
 process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+/**
+ * Register bot commands
+ */
+async function registerBotCommands(bot) {
+  try {
+    await bot.api.setMyCommands([
+      { command: 'start', description: '🚀 Запустити бота' },
+      { command: 'schedule', description: '📊 Графік відключень' },
+      { command: 'next', description: '⏱ Наступне відключення' },
+      { command: 'timer', description: '⏱ Таймер до відключення' },
+      { command: 'stats', description: '📈 Моя статистика' },
+      { command: 'settings', description: '⚙️ Налаштування' },
+      { command: 'channel', description: '📺 Керування каналом' },
+      { command: 'help', description: '❓ Допомога' },
+      { command: 'cancel', description: '🚫 Скасувати дію' },
+    ]);
+    console.log('✅ Bot commands registered');
+  } catch (error) {
+    console.error('⚠️  Failed to register bot commands:', error);
+  }
+}
 
 /**
  * Migrate existing channels (one-time on startup)
