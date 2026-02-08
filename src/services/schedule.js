@@ -100,6 +100,19 @@ function parseIntervalsFromHourlyData(hourlyData) {
 }
 
 /**
+ * Get current date in Kyiv timezone (UTC+2)
+ * Returns a Date object representing midnight UTC for the current Kyiv date
+ * Note: Ukraine is permanently UTC+2 (no DST since 2011)
+ */
+function getKyivDate() {
+  const now = new Date();
+  // Shift to Kyiv time (UTC+2) to get the correct date
+  const kyivTime = new Date(now.getTime() + (2 * 60 * 60 * 1000));
+  // Return a date object representing the Kyiv date at midnight UTC
+  return new Date(Date.UTC(kyivTime.getUTCFullYear(), kyivTime.getUTCMonth(), kyivTime.getUTCDate()));
+}
+
+/**
  * Get date timestamp for schedule data lookup
  * The outage-data-ua repo stores dates at 22:00 UTC (which is midnight Kyiv time)
  * Note: Ukraine is permanently UTC+2 (no DST since 2011)
@@ -170,8 +183,8 @@ async function fetchScheduleFromRepo(region, queue, date) {
     // Parse intervals from hourly data
     const intervals = parseIntervalsFromHourlyData(hourlyData);
     
-    // Build image URL
-    const imageUrl = `https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/images/${regionSlug}/gpv-${group}-${subgroup}-emergency.png`;
+    // Build image URL with cache-busting parameter
+    const imageUrl = `https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/images/${regionSlug}/gpv-${group}-${subgroup}-emergency.png?t=${Date.now()}`;
     
     return {
       region,
@@ -191,7 +204,7 @@ async function fetchScheduleFromRepo(region, queue, date) {
  */
 export async function getScheduleData(region, queue) {
   try {
-    const today = new Date();
+    const today = getKyivDate();
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     
