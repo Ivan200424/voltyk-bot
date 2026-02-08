@@ -36,7 +36,7 @@ function getDayOfWeek(date) {
 
 /**
  * Calculate total hours from time intervals
- * Returns rounded hours for display
+ * Returns hours with half-hour precision (e.g., 2.5)
  */
 function calculateTotalHours(intervals) {
   let totalMinutes = 0;
@@ -57,47 +57,120 @@ function calculateTotalHours(intervals) {
     totalMinutes += endMinutes - startMinutes;
   }
   
-  // Using Math.round for display - spec shows whole hours
-  const hours = Math.round(totalMinutes / 60);
+  // Return hours with half-hour precision
+  // Round to nearest 0.5 (e.g., 2.3 → 2.5, 2.7 → 3.0)
+  const hours = Math.round(totalMinutes / 30) * 0.5;
   return hours;
 }
 
 /**
  * Convert hour status values to time intervals
- * Status values: "yes" (outage), "first" (partial), "second" (partial), "no" (power)
+ * Status values:
+ *   "yes" - Power is ON (no outage)
+ *   "no" - Planned outage for full hour
+ *   "first" - Planned outage for first half (00-30 min)
+ *   "second" - Planned outage for second half (30-60 min)
+ *   "maybe" - Possible outage for full hour
+ *   "mfirst" - Possible outage for first half
+ *   "msecond" - Possible outage for second half
+ * 
+ * Key N represents period from (N-1):00 to N:00
+ * Returns array of objects with { start, end, isPossible }
  */
 function parseIntervalsFromHourlyData(hourlyData) {
-  const intervals = [];
-  let currentStart = null;
+  const outages = [];
   
+  // Parse all outage periods from hourly data
   for (let hour = 1; hour <= 24; hour++) {
     const status = hourlyData[String(hour)];
-    const hasOutage = status === 'yes' || status === 'first' || status === 'second';
     
-    if (hasOutage && currentStart === null) {
-      // Start of an outage interval
-      currentStart = hour - 1; // Hour 1 means 00:00-01:00, so start is 0
-    } else if (!hasOutage && currentStart !== null) {
-      // End of an outage interval
-      const startTime = String(currentStart).padStart(2, '0') + ':00';
-      const endTime = String(hour - 1).padStart(2, '0') + ':00';
-      intervals.push(`${startTime} - ${endTime}`);
-      currentStart = null;
+    // Skip if power is ON
+    if (status === 'yes' || !status) {
+      continue;
     }
+    
+    const hourStart = hour - 1; // Key N → period starts at (N-1):00
+    let startMinutes, endMinutes;
+    let isPossible = false;
+    
+    switch (status) {
+      case 'no':
+        // Full hour outage: (N-1):00 to N:00
+        startMinutes = hourStart * 60;
+        endMinutes = hour * 60;
+        break;
+      case 'first':
+        // First half: (N-1):00 to (N-1):30
+        startMinutes = hourStart * 60;
+        endMinutes = hourStart * 60 + 30;
+        break;
+      case 'second':
+        // Second half: (N-1):30 to N:00
+        startMinutes = hourStart * 60 + 30;
+        endMinutes = hour * 60;
+        break;
+      case 'maybe':
+        // Possible full hour: (N-1):00 to N:00
+        startMinutes = hourStart * 60;
+        endMinutes = hour * 60;
+        isPossible = true;
+        break;
+      case 'mfirst':
+        // Possible first half: (N-1):00 to (N-1):30
+        startMinutes = hourStart * 60;
+        endMinutes = hourStart * 60 + 30;
+        isPossible = true;
+        break;
+      case 'msecond':
+        // Possible second half: (N-1):30 to N:00
+        startMinutes = hourStart * 60 + 30;
+        endMinutes = hour * 60;
+        isPossible = true;
+        break;
+      default:
+        // Unknown status - skip
+        continue;
+    }
+    
+    outages.push({ start: startMinutes, end: endMinutes, isPossible });
   }
   
-  // Handle case where outage extends to end of day
-  if (currentStart !== null) {
-    const startTime = String(currentStart).padStart(2, '0') + ':00';
-    // If starts at 00:00, it's the whole day
-    if (currentStart === 0) {
-      intervals.push('00:00 - 24:00');
+  // Merge consecutive outages of the same type (planned or possible)
+  const merged = [];
+  
+  for (const outage of outages) {
+    if (merged.length === 0) {
+      merged.push(outage);
+      continue;
+    }
+    
+    const last = merged[merged.length - 1];
+    
+    // Merge if same type and consecutive (end of previous == start of current)
+    if (last.isPossible === outage.isPossible && last.end === outage.start) {
+      last.end = outage.end;
     } else {
-      intervals.push(`${startTime} - 24:00`);
+      merged.push(outage);
     }
   }
   
-  return intervals;
+  // Convert to time strings with HH:MM format
+  return merged.map(outage => {
+    const startH = Math.floor(outage.start / 60);
+    const startM = outage.start % 60;
+    let endH = Math.floor(outage.end / 60);
+    const endM = outage.end % 60;
+    
+    // Handle midnight: 24:00 should be displayed as 00:00
+    if (endH === 24 && endM === 0) {
+      endH = 0;
+    }
+    
+    const startTime = `${String(startH).padStart(2, '0')}:${String(startM).padStart(2, '0')}`;
+    const endTime = `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`;
+    
+    return `${startTime} - ${endTime}`;
+  });
 }
 
 /**
@@ -219,6 +292,7 @@ async function fetchScheduleFromRepo(region, queue, date) {
       queue,
       date: formatDate(date),
       intervals,
+      hourlyData, // Include raw hourly data for hash generation
       imageUrl
     };
   } catch (error) {
@@ -246,8 +320,8 @@ export async function getScheduleData(region, queue) {
     }
     
     // Calculate hashes
-    const todayHash = generateHash(todaySchedule.intervals);
-    const tomorrowHash = tomorrowSchedule ? generateHash(tomorrowSchedule.intervals) : null;
+    const todayHash = generateHash(todaySchedule.hourlyData);
+    const tomorrowHash = tomorrowSchedule ? generateHash(tomorrowSchedule.hourlyData) : null;
     
     return {
       today: {

@@ -14,6 +14,7 @@ function escapeMarkdownV2(text) {
 
 /**
  * Calculate hours for a single interval
+ * Returns hours with half-hour precision (e.g., "2.5 год" or "2 год 30 хв")
  */
 function calculateIntervalHours(interval) {
   const [startTime, endTime] = interval.split(' - ');
@@ -28,7 +29,32 @@ function calculateIntervalHours(interval) {
     endMinutes += 24 * 60;
   }
   
-  return Math.round((endMinutes - startMinutes) / 60);
+  const totalMinutes = endMinutes - startMinutes;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  
+  if (minutes === 0) {
+    return `${hours} год`;
+  } else if (hours === 0) {
+    return `${minutes} хв`;
+  } else {
+    return `${hours} год ${minutes} хв`;
+  }
+}
+
+/**
+ * Format total hours with half-hour precision
+ * Takes a number like 2.5 and returns "2 год 30 хв" or "2.5 год"
+ */
+function formatTotalHours(totalHours) {
+  const hours = Math.floor(totalHours);
+  const minutes = Math.round((totalHours - hours) * 60);
+  
+  if (minutes === 0) {
+    return `${hours} год`;
+  } else {
+    return `${hours} год ${minutes} хв`;
+  }
 }
 
 /**
@@ -38,7 +64,7 @@ function formatIntervals(intervals) {
   return intervals.map(interval => {
     const hours = calculateIntervalHours(interval);
     const escapedInterval = escapeMarkdownV2(interval);
-    return `🪫 *${escapedInterval} \\(\\~${hours} год\\)*`;
+    return `🪫 *${escapedInterval} \\(\\~${escapeMarkdownV2(hours)}\\)*`;
   }).join('\n');
 }
 
@@ -57,7 +83,7 @@ function formatScheduleMessage(scheduleData, queue, isManualRequest = true) {
   
   message += `💡 _Графік відключень *на сьогодні, ${todayDate} \\(${todayDay}\\)*, для черги ${queueEscaped}:_\n\n`;
   message += formatIntervals(today.intervals) + '\n\n';
-  message += `Загалом без світла: *\\~${today.totalHours} год*\n\n`;
+  message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*\n\n`;
   
   // Tomorrow's schedule
   if (tomorrow) {
@@ -66,7 +92,7 @@ function formatScheduleMessage(scheduleData, queue, isManualRequest = true) {
     
     message += `💡 _Графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${tomorrow.totalHours} год*`;
+    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(tomorrow.totalHours))}*`;
   } else {
     message += `💡 Графік на завтра ще не опубліковано`;
   }
@@ -89,13 +115,13 @@ export function formatAutoPublishMessage(scheduleData, queue, changes) {
   if (changes.todayIsNew && !tomorrow) {
     message += `💡 _Графік відключень *на сьогодні, ${todayDate} \\(${todayDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${today.totalHours} год*`;
+    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*`;
   }
   // Випадок 2: Графік на сьогодні оновився
   else if (changes.todayChanged && !changes.tomorrowIsNew && !changes.tomorrowChanged) {
     message += `💡 _Оновлено графік відключень *на сьогодні, ${todayDate} \\(${todayDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${today.totalHours} год*`;
+    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*`;
   }
   // Випадок 3: З'явився графік на завтра + сьогодні без змін
   else if (changes.tomorrowIsNew && !changes.todayChanged && tomorrow) {
@@ -104,10 +130,10 @@ export function formatAutoPublishMessage(scheduleData, queue, changes) {
     
     message += `💡 _З'явився графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${tomorrow.totalHours} год*\n\n`;
+    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(tomorrow.totalHours))}*\n\n`;
     message += `💡 _Графік на сьогодні *без змін:*_\n\n`;
     message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${today.totalHours} год*`;
+    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*`;
   }
   // Випадок 4: З'явився графік на завтра + сьогодні теж оновився
   else if (changes.tomorrowIsNew && changes.todayChanged && tomorrow) {
@@ -116,10 +142,10 @@ export function formatAutoPublishMessage(scheduleData, queue, changes) {
     
     message += `💡 _З'явився графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${tomorrow.totalHours} год*\n\n`;
+    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(tomorrow.totalHours))}*\n\n`;
     message += `💡 _Оновлено графік *на сьогодні:*_\n\n`;
     message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${today.totalHours} год*`;
+    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*`;
   }
   // Випадок 5: Графік на завтра оновився
   else if (changes.tomorrowChanged && !changes.todayChanged && tomorrow) {
@@ -128,10 +154,10 @@ export function formatAutoPublishMessage(scheduleData, queue, changes) {
     
     message += `💡 _Оновлено графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
     message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${tomorrow.totalHours} год*\n\n`;
+    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(tomorrow.totalHours))}*\n\n`;
     message += `💡 _Графік на сьогодні *без змін:*_\n\n`;
     message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${today.totalHours} год*`;
+    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*`;
   }
   
   return message;
