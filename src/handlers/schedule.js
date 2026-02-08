@@ -1,254 +1,232 @@
-import { getScheduleData } from '../services/schedule.js';
-import { backMenuKeyboard } from '../keyboards/inline.js';
-import { getUserData, setUserData } from '../storage/index.js';
+const { getUser } = require('../database/redis');
+const { fetchScheduleData } = require('../api');
+const { parseScheduleData, getQueueSchedule, getCurrentStatus } = require('../parser');
+const { formatScheduleMessage, formatTimerMessage, formatMainMenu } = require('../formatter');
+const { getMainMenu, getMenuKeyboard } = require('../keyboards/inline');
+const { safeAnswerCallback } = require('../utils/errorHandler');
 
 /**
- * Escape special characters for MarkdownV2
- * Backslashes must be escaped first to avoid double-escaping
+ * Handle /schedule command - Show outage schedule
  */
-function escapeMarkdownV2(text) {
-  return text
-    .replace(/\\/g, '\\\\')  // Escape backslashes first
-    .replace(/([_*\[\]()~`>#+\-=|{}.!])/g, '\\$1');  // Then escape other special chars
-}
-
-/**
- * Format duration in hours and minutes
- * @param {number} totalMinutes - Total minutes
- * @returns {string} Formatted duration (e.g., "2 год", "30 хв", "2 год 30 хв")
- */
-function formatDuration(totalMinutes) {
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+async function handleSchedule(ctx) {
+  if (ctx.callbackQuery) {
+    await safeAnswerCallback(ctx, '📊 Завантажуємо графік...');
+  }
   
-  if (minutes === 0) {
-    return `${hours} год`;
-  } else if (hours === 0) {
-    return `${minutes} хв`;
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user || !user.region || !user.queue) {
+    const message = '⚠️ Спочатку налаштуйте регіон та чергу через /start';
+    
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(message, { parse_mode: 'HTML' });
+    } else {
+      await ctx.reply(message, { parse_mode: 'HTML' });
+    }
+    return;
+  }
+  
+  // Fetch schedule data
+  const scheduleData = await fetchScheduleData(user.region);
+  
+  if (!scheduleData) {
+    const message = '❌ Не вдалося завантажити графік. Спробуйте пізніше.';
+    
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(message, { 
+        parse_mode: 'HTML',
+        reply_markup: getMenuKeyboard(),
+      });
+    } else {
+      await ctx.reply(message, { 
+        parse_mode: 'HTML',
+        reply_markup: getMenuKeyboard(),
+      });
+    }
+    return;
+  }
+  
+  const parsed = parseScheduleData(scheduleData);
+  const message = formatScheduleMessage(parsed, user.region, user.queue);
+  
+  if (ctx.callbackQuery) {
+    await ctx.editMessageText(message, {
+      parse_mode: 'HTML',
+      reply_markup: getMenuKeyboard(),
+    });
   } else {
-    return `${hours} год ${minutes} хв`;
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: getMenuKeyboard(),
+    });
   }
 }
 
 /**
- * Calculate hours for a single interval
- * Returns hours with half-hour precision (e.g., "2.5 год" or "2 год 30 хв")
+ * Handle /timer command - Show timer to next event
  */
-function calculateIntervalHours(interval) {
-  const [startTime, endTime] = interval.split(' - ');
-  const [startH, startM] = startTime.split(':').map(Number);
-  const [endH, endM] = endTime.split(':').map(Number);
-  
-  let startMinutes = startH * 60 + startM;
-  let endMinutes = endH * 60 + endM;
-  
-  // Handle crossing midnight (end time is 00:00 meaning next day)
-  if (endMinutes <= startMinutes) {
-    endMinutes += 24 * 60;
+async function handleTimer(ctx) {
+  if (ctx.callbackQuery) {
+    await safeAnswerCallback(ctx, '⏱ Завантажуємо...');
   }
   
-  const totalMinutes = endMinutes - startMinutes;
-  return formatDuration(totalMinutes);
-}
-
-/**
- * Format total hours with half-hour precision
- * Takes a number like 2.5 and returns "2 год 30 хв" or "2.5 год"
- */
-function formatTotalHours(totalHours) {
-  const totalMinutes = Math.round(totalHours * 60);
-  return formatDuration(totalMinutes);
-}
-
-/**
- * Format time intervals with bold styling
- */
-function formatIntervals(intervals) {
-  return intervals.map(interval => {
-    const hours = calculateIntervalHours(interval);
-    const escapedInterval = escapeMarkdownV2(interval);
-    return `🪫 *${escapedInterval} \\(\\~${escapeMarkdownV2(hours)}\\)*`;
-  }).join('\n');
-}
-
-/**
- * Format schedule message for user request (button click)
- */
-function formatScheduleMessage(scheduleData, queue, isManualRequest = true) {
-  const { today, tomorrow } = scheduleData;
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
   
-  let message = '';
-  
-  // Today's schedule
-  const todayDate = escapeMarkdownV2(today.date);
-  const todayDay = escapeMarkdownV2(today.dayOfWeek);
-  const queueEscaped = escapeMarkdownV2(queue);
-  
-  message += `💡 _Графік відключень *на сьогодні, ${todayDate} \\(${todayDay}\\)*, для черги ${queueEscaped}:_\n\n`;
-  message += formatIntervals(today.intervals) + '\n\n';
-  message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*\n\n`;
-  
-  // Tomorrow's schedule
-  if (tomorrow) {
-    const tomorrowDate = escapeMarkdownV2(tomorrow.date);
-    const tomorrowDay = escapeMarkdownV2(tomorrow.dayOfWeek);
+  if (!user || !user.region || !user.queue) {
+    const message = '⚠️ Спочатку налаштуйте регіон та чергу через /start';
     
-    message += `💡 _Графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
-    message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(tomorrow.totalHours))}*`;
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(message, { parse_mode: 'HTML' });
+    } else {
+      await ctx.reply(message, { parse_mode: 'HTML' });
+    }
+    return;
   }
   
-  return message;
+  // Fetch schedule data
+  const scheduleData = await fetchScheduleData(user.region);
+  
+  if (!scheduleData) {
+    const message = '❌ Не вдалося завантажити графік. Спробуйте пізніше.';
+    
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(message, {
+        parse_mode: 'HTML',
+        reply_markup: getMenuKeyboard(),
+      });
+    } else {
+      await ctx.reply(message, {
+        parse_mode: 'HTML',
+        reply_markup: getMenuKeyboard(),
+      });
+    }
+    return;
+  }
+  
+  const parsed = parseScheduleData(scheduleData);
+  const queueSchedule = getQueueSchedule(parsed, user.queue);
+  const currentStatus = getCurrentStatus(queueSchedule);
+  
+  const message = formatTimerMessage(currentStatus, user.queue);
+  
+  if (ctx.callbackQuery) {
+    await ctx.editMessageText(message, {
+      parse_mode: 'HTML',
+      reply_markup: getMenuKeyboard(),
+    });
+  } else {
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: getMenuKeyboard(),
+    });
+  }
 }
 
 /**
- * Format auto-publication message based on change type
+ * Handle menu button - Show main menu
  */
-export function formatAutoPublishMessage(scheduleData, queue, changes) {
-  const { today, tomorrow } = scheduleData;
-  let message = '';
+async function handleMenu(ctx) {
+  await safeAnswerCallback(ctx);
   
-  const todayDate = escapeMarkdownV2(today.date);
-  const todayDay = escapeMarkdownV2(today.dayOfWeek);
-  const queueEscaped = escapeMarkdownV2(queue);
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
   
-  // Випадок 1: Перша публікація на сьогодні
-  if (changes.todayIsNew && !tomorrow) {
-    message += `💡 _Графік відключень *на сьогодні, ${todayDate} \\(${todayDay}\\)*, для черги ${queueEscaped}:_\n\n`;
-    message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*`;
-  }
-  // Випадок 2: Графік на сьогодні оновився
-  else if (changes.todayChanged && !changes.tomorrowIsNew && !changes.tomorrowChanged) {
-    message += `💡 _Оновлено графік відключень *на сьогодні, ${todayDate} \\(${todayDay}\\)*, для черги ${queueEscaped}:_\n\n`;
-    message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*`;
-  }
-  // Випадок 3: З'явився графік на завтра + сьогодні без змін
-  else if (changes.tomorrowIsNew && !changes.todayChanged && tomorrow) {
-    const tomorrowDate = escapeMarkdownV2(tomorrow.date);
-    const tomorrowDay = escapeMarkdownV2(tomorrow.dayOfWeek);
-    
-    message += `💡 _З'явився графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
-    message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(tomorrow.totalHours))}*\n\n`;
-    message += `💡 _Графік на сьогодні *без змін:*_\n\n`;
-    message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*`;
-  }
-  // Випадок 4: З'явився графік на завтра + сьогодні теж оновився
-  else if (changes.tomorrowIsNew && changes.todayChanged && tomorrow) {
-    const tomorrowDate = escapeMarkdownV2(tomorrow.date);
-    const tomorrowDay = escapeMarkdownV2(tomorrow.dayOfWeek);
-    
-    message += `💡 _З'явився графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
-    message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(tomorrow.totalHours))}*\n\n`;
-    message += `💡 _Оновлено графік *на сьогодні:*_\n\n`;
-    message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*`;
-  }
-  // Випадок 5: Графік на завтра оновився
-  else if (changes.tomorrowChanged && !changes.todayChanged && tomorrow) {
-    const tomorrowDate = escapeMarkdownV2(tomorrow.date);
-    const tomorrowDay = escapeMarkdownV2(tomorrow.dayOfWeek);
-    
-    message += `💡 _Оновлено графік відключень *на завтра, ${tomorrowDate} \\(${tomorrowDay}\\)*, для черги ${queueEscaped}:_\n\n`;
-    message += formatIntervals(tomorrow.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(tomorrow.totalHours))}*\n\n`;
-    message += `💡 _Графік на сьогодні *без змін:*_\n\n`;
-    message += formatIntervals(today.intervals) + '\n\n';
-    message += `Загалом без світла: *\\~${escapeMarkdownV2(formatTotalHours(today.totalHours))}*`;
-  }
-  
-  return message;
-}
-
-/**
- * Handle schedule button click (manual request)
- */
-export async function handleSchedule(ctx) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
-  
-  // Check if user has configured region and queue
-  if (!userData.region || !userData.queue) {
-    await ctx.answerCallbackQuery({
-      text: '⚠️ Спочатку налаштуйте регіон та чергу в налаштуваннях',
-      show_alert: true,
+  if (!user || !user.region || !user.queue) {
+    await ctx.editMessageText('⚠️ Спочатку налаштуйте регіон та чергу через /start', {
+      parse_mode: 'HTML',
     });
     return;
   }
   
-  try {
-    if (ctx.callbackQuery) {
-      await ctx.answerCallbackQuery();
-    }
-    
-    // Fetch schedule data
-    const scheduleData = await getScheduleData(userData.region, userData.queue);
-    
-    if (!scheduleData) {
-      const errorMessage = '⚠️ Графік тимчасово недоступний. Спробуйте пізніше.';
-      
-      if (ctx.callbackQuery) {
-        return await ctx.cleanAndEdit(errorMessage, {
-          reply_markup: backMenuKeyboard(),
-        });
-      } else {
-        return await ctx.cleanAndSend(errorMessage, {
-          reply_markup: backMenuKeyboard(),
-        });
-      }
-    }
-    
-    // Format message
-    const message = formatScheduleMessage(scheduleData, userData.queue);
-    
-    // For manual request, we send photo with caption
-    // Delete previous bot message (clean chat)
-    if (userData.lastBotMessageId) {
-      try {
-        await ctx.api.deleteMessage(ctx.chat.id, userData.lastBotMessageId);
-      } catch (error) {
-        console.log('Could not delete message:', error.message);
-      }
-    }
-    
-    // Send photo with schedule
-    // Note: Using placeholder until actual outage-data-ua integration is complete
-    // In production, use: scheduleData.today.imageUrl
-    const baseImageUrl = scheduleData.today.imageUrl || 'https://via.placeholder.com/800x600.png?text=Schedule+Graph';
-    // Add cache-busting parameter to force Telegram to fetch fresh image
-    const imageUrl = baseImageUrl.includes('?') ? `${baseImageUrl}&t=${Date.now()}` : `${baseImageUrl}?t=${Date.now()}`;
-    
-    const sentMessage = await ctx.replyWithPhoto(
-      imageUrl,
-      {
-        caption: message,
-        parse_mode: 'MarkdownV2',
-        reply_markup: backMenuKeyboard(),
-      }
-    );
-    
-    // Update lastBotMessageId
-    userData.lastBotMessageId = sentMessage.message_id;
-    await setUserData(userId, userData);
-    ctx.userData = userData;
-    
-  } catch (error) {
-    console.error('Error handling schedule:', error);
-    
-    const errorMessage = '⚠️ Виникла помилка при отриманні графіка. Спробуйте пізніше.';
+  await ctx.editMessageText(formatMainMenu(user), {
+    parse_mode: 'HTML',
+    reply_markup: getMainMenu(user),
+  });
+}
+
+/**
+ * Handle /stats command - Show user statistics
+ */
+async function handleStats(ctx) {
+  if (ctx.callbackQuery) {
+    await safeAnswerCallback(ctx, '📈 Завантажуємо статистику...');
+  }
+  
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user) {
+    const message = '⚠️ Спочатку налаштуйтеся через /start';
     
     if (ctx.callbackQuery) {
-      return await ctx.cleanAndEdit(errorMessage, {
-        reply_markup: backMenuKeyboard(),
-      });
+      await ctx.editMessageText(message, { parse_mode: 'HTML' });
     } else {
-      return await ctx.cleanAndSend(errorMessage, {
-        reply_markup: backMenuKeyboard(),
-      });
+      await ctx.reply(message, { parse_mode: 'HTML' });
     }
+    return;
+  }
+  
+  const { formatUserStats } = require('../formatter');
+  const message = formatUserStats(user);
+  
+  if (ctx.callbackQuery) {
+    await ctx.editMessageText(message, {
+      parse_mode: 'HTML',
+      reply_markup: getMenuKeyboard(),
+    });
+  } else {
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: getMenuKeyboard(),
+    });
   }
 }
+
+/**
+ * Handle /help command - Show help
+ */
+async function handleHelp(ctx) {
+  if (ctx.callbackQuery) {
+    await safeAnswerCallback(ctx);
+  }
+  
+  const message = `❓ <b>Допомога</b>
+
+<b>Команди бота:</b>
+
+/start - Запустити бота та налаштувати регіон
+/schedule - Показати графік відключень
+/timer - Таймер до наступного відключення
+/stats - Моя статистика
+/settings - Налаштування
+/channel - Керування каналом
+/help - Ця довідка
+
+<b>Про бота:</b>
+Вольтик допомагає відстежувати графіки відключень електроенергії в Україні. Ви можете налаштувати регіон та чергу, щоб отримувати актуальну інформацію.
+
+<b>Підтримка:</b>
+Якщо виникли проблеми, напишіть адміністратору.`;
+  
+  if (ctx.callbackQuery) {
+    await ctx.editMessageText(message, {
+      parse_mode: 'HTML',
+      reply_markup: getMenuKeyboard(),
+    });
+  } else {
+    await ctx.reply(message, {
+      parse_mode: 'HTML',
+      reply_markup: getMenuKeyboard(),
+    });
+  }
+}
+
+module.exports = {
+  handleSchedule,
+  handleTimer,
+  handleMenu,
+  handleStats,
+  handleHelp,
+};

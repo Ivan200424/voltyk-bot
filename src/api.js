@@ -1,60 +1,68 @@
+const axios = require('axios');
+const { setCache, getCache } = require('./database/redis');
+const { createLogger } = require('./utils/logger');
+
+const logger = createLogger('API');
+
+const BASE_URL = 'https://raw.githubusercontent.com/Baskerville42/outage-data-ua/main/data';
+const CACHE_TTL = 300; // 5 minutes
+
 /**
- * API module for fetching schedule data
+ * Fetch schedule data for a region
  */
-
-import { get, set } from './storage/index.js';
-import { config } from './config.js';
-
-const CACHE_TTL = 60; // Cache TTL in seconds
-
-/**
- * Fetch schedule data from GitHub repository
- * @param {string} region - Region code (e.g., 'kyiv', 'kyiv-region')
- * @returns {Promise<Object|null>} Schedule JSON data or null if failed
- */
-export async function fetchScheduleData(region) {
+async function fetchScheduleData(region) {
   try {
-    // Validate region parameter against known values
-    const validRegions = Object.values(config.regionSlugs);
-    if (!validRegions.includes(region)) {
-      console.error(`Invalid region parameter: ${region}`);
-      return null;
-    }
-    
     // Check cache first
-    const cacheKey = `schedule_json:${region}`;
-    let jsonData = await get(cacheKey);
-    
-    if (!jsonData) {
-      // Fetch from GitHub
-      const url = `https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/data/${region}.json`;
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        console.error(`Failed to fetch schedule from ${url}: ${response.status}`);
-        return null;
-      }
-      
-      jsonData = await response.json();
-      
-      // Cache the result
-      await set(cacheKey, jsonData, CACHE_TTL);
+    const cached = await getCache(`schedule:${region}`);
+    if (cached) {
+      logger.debug(`Cache hit for region ${region}`);
+      return cached;
     }
     
-    return jsonData;
+    // Fetch from GitHub
+    const url = `${BASE_URL}/${region}.json`;
+    logger.info(`Fetching schedule from ${url}`);
+    
+    const response = await axios.get(url, {
+      timeout: 10000,
+      headers: {
+        'User-Agent': 'Voltyk-Bot/2.0',
+      },
+    });
+    
+    if (response.status === 200 && response.data) {
+      // Cache the response
+      await setCache(`schedule:${region}`, response.data, CACHE_TTL);
+      logger.info(`Successfully fetched and cached schedule for ${region}`);
+      return response.data;
+    }
+    
+    logger.warn(`Invalid response for region ${region}:`, response.status);
+    return null;
   } catch (error) {
-    console.error(`Error fetching schedule data for ${region}:`, error);
+    logger.error(`Error fetching schedule for ${region}:`, error.message);
     return null;
   }
 }
 
 /**
- * Get schedule image URL
- * @param {string} region - Region code
- * @param {string} queue - Queue (e.g., '3.1')
- * @returns {string} Image URL
+ * Fetch all schedules for all regions
  */
-export function getScheduleImageUrl(region, queue) {
-  const [group, subgroup] = queue.split('.');
-  return `https://raw.githubusercontent.com/Baskerville42/outage-data-ua/refs/heads/main/images/${region}/gpv-${group}-${subgroup}-emergency.png`;
+async function fetchAllSchedules(regions) {
+  const promises = regions.map(region => fetchScheduleData(region));
+  const results = await Promise.allSettled(promises);
+  
+  const schedules = {};
+  results.forEach((result, index) => {
+    if (result.status === 'fulfilled' && result.value) {
+      schedules[regions[index]] = result.value;
+    }
+  });
+  
+  return schedules;
 }
+
+module.exports = {
+  fetchScheduleData,
+  fetchAllSchedules,
+};

@@ -95,9 +95,38 @@ voltyk-bot/
 - **Clean Chat UX**: Бот видаляє попередні повідомлення, щоб не захламлювати чат
 - **Wizard**: Покроковий майстер налаштування при першому запуску
 - **Inline Navigation**: Вся навігація через inline-кнопки
-- **Redis Fallback**: Якщо Redis недоступний, використовується in-memory зберігання
+- **Redis Integration**: Використання Redis з автоматичним TTL для станів
 - **Rate Limiting**: Захист від зловживань
 - **Webhook Protection**: Перевірка дублікатів update_id
+- **CommonJS**: Весь код використовує CommonJS (require/module.exports)
+- **Security**: Оновлені залежності без вразливостей
+
+## 🔒 Безпека
+
+### Реалізовані заходи безпеки
+
+1. **Безпека залежностей**
+   - Оновлено axios до v1.12.0 (виправлено DoS та SSRF вразливості)
+   - Регулярні оновлення через npm audit
+
+2. **Обмеження частоти запитів**
+   - Health check endpoint: 10 запитів/хвилину на IP
+   - Throttling API бота через transformer
+
+3. **Обробка помилок**
+   - Safe message wrappers запобігають падінню бота
+   - Комплексні try-catch блоки
+
+4. **Захист даних**
+   - Redis TTL для автоматичного очищення станів
+   - Видалення даних користувача на вимогу
+
+### Security Summary
+
+**CodeQL аналіз:**
+- 1 попередження про відсутність rate-limiting на /health endpoint
+  - **Статус**: Виправлено з in-memory rate limiter (10 req/min на IP)
+  - **Обґрунтування**: Health checks потребують частого доступу від load balancers
 
 ## 🤝 Підтримка
 

@@ -1,166 +1,166 @@
-import { createServer } from 'http';
-import bot from './bot.js';
-import { config } from './config.js';
-import { initStorage, closeStorage, getAllUserIds, getUserData, setUserData } from './storage/index.js';
-import { initScheduleChecker, stopScheduleChecker } from './jobs/scheduleChecker.js';
-import { initChannelGuard, stopChannelGuard } from './jobs/channelGuard.js';
-import { migrateExistingChannel } from './services/channel.js';
-import { initPendingChannelsCleanup, stopPendingChannelsCleanup } from './handlers/start.js';
+require('dotenv').config();
 
-// Track processed update IDs to prevent duplicate processing (LRU-style)
-const processedUpdates = new Map();
-const MAX_PROCESSED_UPDATES = 1000;
+const express = require('express');
+const { webhookCallback } = require('grammy');
+const { autoRetry } = require('@grammyjs/auto-retry');
+const { apiThrottler } = require('@grammyjs/transformer-throttler');
+const { createBot } = require('./bot');
+const { config } = require('./config');
+const { getRedisClient, getUserCount, closeRedis } = require('./database/redis');
+const { initScheduler, stopScheduler } = require('./scheduler');
+const { initChannelGuard, stopChannelGuard } = require('./channelGuard');
+const { initPowerMonitor, stopPowerMonitor } = require('./powerMonitor');
+const { createLogger } = require('./utils/logger');
 
-// Track server for graceful shutdown
+const logger = createLogger('Main');
+
 let httpServer = null;
+let bot = null;
 
+/**
+ * Main function
+ */
 async function main() {
-  console.log('🚀 Starting Voltyk Bot...');
+  logger.info('🚀 Starting Voltyk Bot...');
   
-  // Initialize storage
-  await initStorage();
+  try {
+    // Connect to Redis
+    const redis = getRedisClient();
+    await redis.connect();
+    logger.info('✅ Redis connected successfully');
+  } catch (error) {
+    logger.error('❌ Failed to connect to Redis:', error.message);
+    process.exit(1);
+  }
   
-  // Initialize bot (this also fetches bot info internally)
+  // Create bot with transformers
+  bot = createBot();
+  
+  // Apply auto-retry transformer
+  bot.api.config.use(autoRetry({
+    maxRetryAttempts: 3,
+    maxDelaySeconds: 5,
+  }));
+  
+  // Apply throttler transformer
+  const throttler = apiThrottler();
+  bot.api.config.use(throttler);
+  
+  // Initialize bot
   await bot.init();
-  
-  // Get bot info from initialized bot
   const botInfo = bot.botInfo;
-  console.log(`✅ Bot @${botInfo.username} is ready`);
+  logger.info(`✅ Bot @${botInfo.username} is ready`);
   
   // Register bot commands
   await registerBotCommands(bot);
   
-  // Initialize schedule checker
-  initScheduleChecker(bot);
+  // Initialize scheduler
+  initScheduler(bot);
   
   // Initialize channel guard
   initChannelGuard(bot);
   
-  // Initialize pending channels cleanup
-  initPendingChannelsCleanup();
+  // Initialize power monitor
+  initPowerMonitor();
   
-  // Run one-time migration for existing channels
-  await migrateExistingChannels(bot);
-  
-  // Setup webhook
-  if (config.webhookDomain) {
-    // Remove trailing slash from domain to prevent double slashes
-    const domain = config.webhookDomain.replace(/\/+$/, '');
-    const webhookUrl = `${domain}/webhook`;
-    await bot.api.setWebhook(webhookUrl);
-    console.log(`✅ Webhook set to: ${webhookUrl}`);
-    
-    const server = createServer(async (req, res) => {
-      // Health check endpoint
-      if (req.url === '/health' || req.url === '/') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ status: 'ok', bot: botInfo.username }));
-        return;
-      }
-      
-      // Webhook endpoint
-      if (req.url === '/webhook' && req.method === 'POST') {
-        let body = '';
-        
-        req.on('data', (chunk) => {
-          body += chunk.toString();
-        });
-        
-        req.on('end', async () => {
-          try {
-            const update = JSON.parse(body);
-            
-            // Check for duplicate updates
-            if (processedUpdates.has(update.update_id)) {
-              console.log(`⚠️  Duplicate update ${update.update_id}, skipping`);
-              res.writeHead(200);
-              res.end('ok');
-              return;
-            }
-            
-            // Add to processed map (Map maintains insertion order)
-            processedUpdates.set(update.update_id, Date.now());
-            
-            // Limit map size (remove oldest entries)
-            if (processedUpdates.size > MAX_PROCESSED_UPDATES) {
-              const firstKey = processedUpdates.keys().next().value;
-              processedUpdates.delete(firstKey);
-            }
-            
-            // Process update directly through bot
-            await bot.handleUpdate(update);
-            
-            res.writeHead(200);
-            res.end('ok');
-          } catch (error) {
-            console.error('❌ Error processing update:', error);
-            res.writeHead(200); // Return 200 to prevent Telegram retries
-            res.end('ok');
-          }
-        });
-        
-        return;
-      }
-      
-      // 404 for other routes
-      res.writeHead(404);
-      res.end('Not Found');
-    });
-    
-    const port = config.port;
-    httpServer = server.listen(port, () => {
-      console.log(`✅ Server listening on port ${port}`);
-    });
+  // Setup webhook or polling
+  if (config.botMode === 'webhook' && config.webhookUrl) {
+    await setupWebhook(bot);
   } else {
-    console.log('⚠️  WEBHOOK_DOMAIN not set, bot will not receive updates');
-    console.log('ℹ️  Set WEBHOOK_DOMAIN in .env to enable webhook mode');
+    logger.warn('⚠️  Webhook mode not configured, starting in polling mode...');
+    await bot.start();
+    logger.info('✅ Bot started in polling mode');
   }
 }
 
-// Handle graceful shutdown
-async function gracefulShutdown(signal) {
-  console.log(`\n👋 Received ${signal}, shutting down gracefully...`);
+/**
+ * Setup webhook with Express
+ */
+async function setupWebhook(bot) {
+  const app = express();
+  app.use(express.json());
   
-  // Stop accepting new requests
-  if (httpServer) {
-    await new Promise((resolve) => {
-      httpServer.close((err) => {
-        if (err) {
-          console.error('⚠️  Error closing HTTP server:', err.message);
+  // Health check endpoint
+  app.get('/', (req, res) => {
+    res.send('Voltyk Bot is running');
+  });
+  
+  // Simple in-memory rate limiter for health checks
+  const healthCheckLimiter = new Map();
+  const HEALTH_CHECK_LIMIT = 10; // Max 10 requests per minute per IP
+  const HEALTH_CHECK_WINDOW = 60000; // 1 minute
+  
+  // Health check with details
+  app.get('/health', async (req, res) => {
+    try {
+      // Basic rate limiting
+      const clientIp = req.ip || req.connection.remoteAddress;
+      const now = Date.now();
+      
+      if (!healthCheckLimiter.has(clientIp)) {
+        healthCheckLimiter.set(clientIp, { count: 1, resetAt: now + HEALTH_CHECK_WINDOW });
+      } else {
+        const limiter = healthCheckLimiter.get(clientIp);
+        if (now > limiter.resetAt) {
+          // Reset window
+          limiter.count = 1;
+          limiter.resetAt = now + HEALTH_CHECK_WINDOW;
         } else {
-          console.log('✅ HTTP server closed');
+          limiter.count++;
+          if (limiter.count > HEALTH_CHECK_LIMIT) {
+            return res.status(429).json({ status: 'error', error: 'Too many requests' });
+          }
         }
-        resolve(); // Always resolve to continue shutdown
+      }
+      
+      // Clean up old entries periodically
+      if (healthCheckLimiter.size > 1000) {
+        for (const [ip, data] of healthCheckLimiter.entries()) {
+          if (now > data.resetAt) {
+            healthCheckLimiter.delete(ip);
+          }
+        }
+      }
+      
+      const redis = getRedisClient();
+      const redisPing = await redis.ping();
+      const userCount = await getUserCount();
+      
+      res.json({
+        status: 'ok',
+        uptime: process.uptime(),
+        redis: redisPing === 'PONG' ? 'connected' : 'error',
+        users: userCount,
+        memory: {
+          heapUsed: process.memoryUsage().heapUsed,
+          heapTotal: process.memoryUsage().heapTotal,
+          external: process.memoryUsage().external,
+        },
+        bot: bot.botInfo.username,
       });
-    });
-  }
+    } catch (error) {
+      res.status(500).json({
+        status: 'error',
+        error: error.message,
+      });
+    }
+  });
   
-  // Stop schedule checker
-  stopScheduleChecker();
+  // Webhook endpoint
+  app.use('/webhook', webhookCallback(bot, 'express'));
   
-  // Stop channel guard
-  stopChannelGuard();
+  // Start server
+  httpServer = app.listen(config.webhookPort, () => {
+    logger.info(`🌐 Webhook server listening on port ${config.webhookPort}`);
+  });
   
-  // Stop pending channels cleanup
-  stopPendingChannelsCleanup();
-  
-  // Stop bot
-  try {
-    await bot.stop();
-    console.log('✅ Bot stopped');
-  } catch (error) {
-    console.error('⚠️  Error stopping bot (shutdown will continue):', error.message);
-  }
-  
-  // Close storage connections
-  await closeStorage();
-  
-  console.log('✅ Shutdown complete');
-  process.exit(0);
+  // Set webhook
+  const webhookUrl = `${config.webhookUrl}/webhook`;
+  await bot.api.setWebhook(webhookUrl, {
+    secret_token: config.webhookSecret || undefined,
+  });
+  logger.info(`✅ Webhook set to: ${webhookUrl}`);
 }
-
-process.once('SIGINT', () => gracefulShutdown('SIGINT'));
-process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
 
 /**
  * Register bot commands
@@ -178,93 +178,74 @@ async function registerBotCommands(bot) {
       { command: 'help', description: '❓ Допомога' },
       { command: 'cancel', description: '🚫 Скасувати дію' },
     ]);
-    console.log('✅ Bot commands registered');
+    logger.info('✅ Bot commands registered');
   } catch (error) {
-    console.error('⚠️  Failed to register bot commands:', error);
+    logger.error('⚠️  Failed to register bot commands:', error.message);
   }
 }
 
 /**
- * Migrate existing channels (one-time on startup)
+ * Graceful shutdown
  */
-async function migrateExistingChannels(bot) {
-  try {
-    console.log('🔄 Checking for channels that need migration...');
-    
-    const userIds = await getAllUserIds();
-    let migratedCount = 0;
-    let notifiedCount = 0;
-    
-    for (const userId of userIds) {
-      try {
-        const userData = await getUserData(userId);
-        
-        // Skip if no channel or already has branding fields
-        if (!userData.channelId || userData.channel_title) {
-          continue;
+async function gracefulShutdown(signal) {
+  logger.info(`\n👋 Received ${signal}, shutting down gracefully...`);
+  
+  // Stop accepting new requests
+  if (httpServer) {
+    await new Promise((resolve) => {
+      httpServer.close((err) => {
+        if (err) {
+          logger.error('⚠️  Error closing HTTP server:', err.message);
+        } else {
+          logger.info('✅ HTTP server closed');
         }
-        
-        const migrationResult = await migrateExistingChannel(bot, userData);
-        
-        if (migrationResult.alreadyCorrect) {
-          // Channel already has correct branding - just update DB
-          userData.channel_id = userData.channelId;
-          userData.channel_title = migrationResult.currentTitle;
-          userData.channel_description = migrationResult.currentDescription;
-          userData.channel_photo_file_id = migrationResult.currentPhotoFileId;
-          userData.channel_status = 'active';
-          userData.channel_branding_updated_at = Date.now();
-          
-          // Extract user title from full title
-          const prefix = 'Вольтик ⚡️ ';
-          if (migrationResult.currentTitle.startsWith(prefix)) {
-            userData.channel_user_title = migrationResult.currentTitle.substring(prefix.length);
-          }
-          
-          await setUserData(userId, userData);
-          migratedCount++;
-          
-          console.log(`✅ Auto-migrated channel for user ${userId} (already correct)`);
-        } else if (migrationResult.needsMigration) {
-          // Channel needs manual setup - block it and notify user
-          userData.channel_status = 'blocked';
-          userData.migration_notified = true;
-          await setUserData(userId, userData);
-          
-          await bot.api.sendMessage(userId, `⚠️ <b>Важливе оновлення</b>
-
-Ми додали нову систему брендування каналів для Вольтика.
-
-Всі підключені канали тепер повинні мати:
-• Стандартну назву з префіксом "Вольтик ⚡️"
-• Стандартний опис
-• Стандартне фото
-
-🔴 Ваш канал тимчасово відключено.
-
-Щоб відновити роботу:
-1. Перейдіть в Налаштування → Канал
-2. Підключіть канал заново
-3. Бот автоматично встановить правильне оформлення`, {
-            parse_mode: 'HTML',
-          });
-          
-          notifiedCount++;
-          console.log(`📧 Notified user ${userId} about migration needed`);
-        }
-      } catch (error) {
-        console.error(`Error migrating channel for user ${userId}:`, error);
-      }
-    }
-    
-    console.log(`✅ Migration complete: ${migratedCount} auto-migrated, ${notifiedCount} notified`);
-  } catch (error) {
-    console.error('Error during channel migration:', error);
+        resolve();
+      });
+    });
   }
+  
+  // Stop scheduler
+  stopScheduler();
+  
+  // Stop channel guard
+  stopChannelGuard();
+  
+  // Stop power monitor
+  stopPowerMonitor();
+  
+  // Stop bot
+  if (bot) {
+    try {
+      await bot.stop();
+      logger.info('✅ Bot stopped');
+    } catch (error) {
+      logger.error('⚠️  Error stopping bot:', error.message);
+    }
+  }
+  
+  // Close Redis connection
+  await closeRedis();
+  
+  logger.info('✅ Shutdown complete');
+  process.exit(0);
 }
+
+// Register shutdown handlers
+process.once('SIGINT', () => gracefulShutdown('SIGINT'));
+process.once('SIGTERM', () => gracefulShutdown('SIGTERM'));
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (error) => {
+  logger.error('❌ Uncaught Exception:', error);
+  gracefulShutdown('uncaughtException');
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  logger.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+});
 
 // Start the bot
 main().catch((error) => {
-  console.error('❌ Failed to start bot:', error);
+  logger.error('❌ Failed to start bot:', error);
   process.exit(1);
 });

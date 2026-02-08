@@ -1,0 +1,11 @@
+const CAPACITY_LIMITS = {
+  MAX_TOTAL_USERS: parseInt(process.env.MAX_TOTAL_USERS || '5000000', 10),
+  MAX_CONCURRENT_USERS: parseInt(process.env.MAX_CONCURRENT_USERS || '50000', 10),
+  MAX_WIZARD_PER_MINUTE: parseInt(process.env.MAX_WIZARD_PER_MINUTE || '500', 10),
+  MAX_ACTIONS_PER_USER_PER_MIN: parseInt(process.env.MAX_ACTIONS_PER_USER_PER_MIN || '20', 10),
+  MAX_TOTAL_CHANNELS: parseInt(process.env.MAX_TOTAL_CHANNELS || '500000', 10),
+  MAX_CHANNEL_PUBLISH_PER_MIN: parseInt(process.env.MAX_CHANNEL_PUBLISH_PER_MIN || '2000', 10),
+  MAX_MESSAGES_PER_MINUTE: parseInt(process.env.MAX_MESSAGES_PER_MINUTE || '30000', 10),
+};
+
+module.exports = { CAPACITY_LIMITS };

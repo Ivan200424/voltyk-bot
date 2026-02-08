@@ -1,304 +1,440 @@
-import { getUserData, setUserData, delUserData } from '../storage/index.js';
-import { 
-  settingsKeyboard, 
-  regionKeyboard, 
-  queueKeyboard, 
-  channelSettingsKeyboard,
-  notifyTargetKeyboard,
-  alertToggleKeyboard,
-  deleteDataConfirmKeyboard,
-  deleteDataFinalKeyboard,
-  backMenuKeyboard,
-} from '../keyboards/inline.js';
-import { showMainMenu } from './menu.js';
-import { setWizardState } from '../state/stateManager.js';
-import { isAdmin } from '../utils.js';
-import { REGION_CODE_TO_NAME } from '../constants/regions.js';
+const { getUser, updateUser, deleteUser } = require('../database/redis');
+const { clearState, setState, getState } = require('../state/stateManager');
+const {
+  getSettingsKeyboard,
+  getRegionChangeKeyboard,
+  getQueueChangeKeyboard,
+  getChannelSettingsKeyboard,
+  getNotifyTargetKeyboard,
+  getAlertToggleKeyboard,
+  getDeleteDataConfirmKeyboard,
+  getDeleteDataFinalKeyboard,
+} = require('../keyboards/inline');
+const { REGIONS } = require('../constants/regions');
+const { isAdmin } = require('../utils');
+const { safeAnswerCallback, safeEditMessage } = require('../utils/errorHandler');
 
-export async function handleSettings(ctx) {
-  const userId = ctx.from.id;
-  const text = `⚙️ Налаштування`;
-  const keyboard = settingsKeyboard(isAdmin(userId));
-
+/**
+ * Handle /settings command
+ */
+async function handleSettings(ctx) {
   if (ctx.callbackQuery) {
-    await ctx.answerCallbackQuery();
-    return await ctx.cleanAndEdit(text, {
-      reply_markup: keyboard,
-    });
-  } else {
-    return await ctx.cleanAndSend(text, {
-      reply_markup: keyboard,
-    });
+    await safeAnswerCallback(ctx);
   }
-}
-
-export async function handleSettingsRegion(ctx) {
-  await ctx.answerCallbackQuery();
   
-  // Set wizard state to track region/queue change from settings
-  await setWizardState(ctx.from.id, { step: 1, mode: 'settings' });
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
   
-  const text = `📍 Оберіть новий регіон:`;
-  
-  return await ctx.cleanAndEdit(text, {
-    reply_markup: regionKeyboard(),
-  });
-}
-
-export async function handleSettingsChannel(ctx) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
-
-  await ctx.answerCallbackQuery();
-
-  // Show different UI based on whether channel is connected
-  if (userData.channel_id && userData.channel_status === 'active') {
-    const channelLink = userData.channel_name ? `@${userData.channel_name}` : userData.channel_id;
+  if (!user) {
+    const message = '⚠️ Спочатку налаштуйтеся через /start';
     
-    const text = `📺 <b>Налаштування каналу</b>
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(message, { parse_mode: 'HTML' });
+    } else {
+      await ctx.reply(message, { parse_mode: 'HTML' });
+    }
+    return;
+  }
+  
+  const regionName = user.region ? REGIONS[user.region]?.name || user.region : 'не вказано';
+  const message = `⚙️ <b>Налаштування</b>
 
-Канал: ${channelLink}
-Статус: ✅ Активний
+🌍 Регіон: <b>${regionName}</b>
+⚡️ Черга: <b>${user.queue || 'не вказано'}</b>
+📺 Канал: ${user.channelId ? '✅ Підключено' : '❌ Не підключено'}
 
 Оберіть дію:`;
-
-    return await ctx.cleanAndEdit(text, {
+  
+  const keyboard = getSettingsKeyboard(isAdmin(chatId));
+  
+  if (ctx.callbackQuery) {
+    await safeEditMessage(ctx, message, {
       parse_mode: 'HTML',
-      reply_markup: channelSettingsKeyboard(userData),
+      reply_markup: keyboard,
     });
   } else {
-    // No channel connected or blocked
-    const text = `📺 <b>Налаштування каналу</b>
-
-У вас немає підключеного активного каналу.
-
-Оберіть дію:`;
-
-    return await ctx.cleanAndEdit(text, {
+    await ctx.reply(message, {
       parse_mode: 'HTML',
-      reply_markup: channelSettingsKeyboard(userData),
+      reply_markup: keyboard,
     });
   }
 }
 
-export async function handleSettingsIp(ctx) {
-  await ctx.answerCallbackQuery({
-    text: '📡 IP моніторинг буде доступний в наступному оновленні',
-    show_alert: true,
-  });
-}
-
-export async function handleSettingsAlerts(ctx) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
+/**
+ * Handle settings region button
+ */
+async function handleSettingsRegion(ctx) {
+  await safeAnswerCallback(ctx);
   
-  await ctx.answerCallbackQuery();
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
   
-  const status = userData.notifications_enabled ? 'увімкнено ✅' : 'вимкнено ❌';
-  const text = `🔔 <b>Налаштування сповіщень</b>
-
-Поточний стан: ${status}
-
-Натисніть кнопку нижче, щоб змінити:`;
+  if (!user) {
+    await ctx.answerCallbackQuery({ text: '❌ Користувача не знайдено', show_alert: true });
+    return;
+  }
   
-  return await ctx.cleanAndEdit(text, {
+  const currentRegion = user.region ? REGIONS[user.region]?.name || user.region : 'не вказано';
+  
+  const message = `🌍 <b>Зміна регіону</b>
+
+Поточний регіон: <b>${currentRegion}</b>
+
+Оберіть новий регіон:`;
+  
+  await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
-    reply_markup: alertToggleKeyboard(userData.notifications_enabled),
+    reply_markup: getRegionChangeKeyboard(),
   });
 }
 
-export async function handleAlertToggle(ctx) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
+/**
+ * Handle region change from settings
+ */
+async function handleRegionChangeFromSettings(ctx) {
+  await safeAnswerCallback(ctx);
   
-  userData.notifications_enabled = !userData.notifications_enabled;
-  await setUserData(userId, userData);
-  ctx.userData = userData;
+  const chatId = ctx.from.id;
+  const region = ctx.callbackQuery.data.replace('region_', '');
   
-  const status = userData.notifications_enabled ? 'увімкнено ✅' : 'вимкнено ❌';
-  
-  await ctx.answerCallbackQuery({
-    text: `🔔 Сповіщення ${status}`,
-  });
-  
-  return await handleSettingsAlerts(ctx);
-}
-
-export async function handleNotifyTargetBot(ctx) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
-  
-  userData.power_notify_target = 'bot';
-  await setUserData(userId, userData);
-  ctx.userData = userData;
-  
-  await ctx.answerCallbackQuery({
-    text: '✅ Сповіщення будуть надходити у бот',
-  });
-  
-  return await handleSettings(ctx);
-}
-
-export async function handleNotifyTargetChannel(ctx) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
-  
-  if (!userData.channel_id || userData.channel_status !== 'active') {
-    await ctx.answerCallbackQuery({
-      text: '⚠️ Спочатку підключіть канал',
-      show_alert: true,
-    });
+  if (!REGIONS[region]) {
+    await ctx.answerCallbackQuery({ text: '❌ Невірний регіон', show_alert: true });
     return;
   }
   
-  userData.power_notify_target = 'channel';
-  await setUserData(userId, userData);
-  ctx.userData = userData;
-  
-  await ctx.answerCallbackQuery({
-    text: '✅ Сповіщення будуть надходити у канал',
+  // Set state to remember we're changing region
+  await setState('conversation', chatId, {
+    action: 'change_region',
+    region,
   });
   
-  return await handleSettings(ctx);
+  const message = `✅ Регіон обрано: <b>${REGIONS[region].name}</b>
+
+Тепер оберіть чергу:`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getQueueChangeKeyboard(),
+  });
 }
 
-export async function handleNotifyTargetBoth(ctx) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
+/**
+ * Handle queue change from settings
+ */
+async function handleQueueChangeFromSettings(ctx) {
+  await safeAnswerCallback(ctx);
   
-  if (!userData.channel_id || userData.channel_status !== 'active') {
-    await ctx.answerCallbackQuery({
-      text: '⚠️ Спочатку підключіть канал',
-      show_alert: true,
-    });
+  const chatId = ctx.from.id;
+  const queue = ctx.callbackQuery.data.replace('queue_', '');
+  
+  const conversation = await getState('conversation', chatId);
+  
+  if (!conversation || conversation.action !== 'change_region') {
+    await ctx.answerCallbackQuery({ text: '❌ Помилка: невірний стан', show_alert: true });
     return;
   }
   
-  userData.power_notify_target = 'both';
-  await setUserData(userId, userData);
-  ctx.userData = userData;
-  
-  await ctx.answerCallbackQuery({
-    text: '✅ Сповіщення будуть надходити у бот і канал',
+  // Update user
+  await updateUser(chatId, {
+    region: conversation.region,
+    queue,
   });
   
-  return await handleSettings(ctx);
+  await clearState('conversation', chatId);
+  
+  const message = `✅ <b>Налаштування оновлено!</b>
+
+🌍 Новий регіон: <b>${REGIONS[conversation.region].name}</b>
+⚡️ Нова черга: <b>${queue}</b>`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getSettingsKeyboard(isAdmin(chatId)),
+  });
 }
 
-export async function handleConfirmDeleteData(ctx) {
-  await ctx.answerCallbackQuery();
+/**
+ * Handle settings channel button
+ */
+async function handleSettingsChannel(ctx) {
+  await safeAnswerCallback(ctx);
   
-  const text = `⚠️ <b>Видалення даних</b>
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user) {
+    await ctx.answerCallbackQuery({ text: '❌ Користувача не знайдено', show_alert: true });
+    return;
+  }
+  
+  let message = `📺 <b>Керування каналом</b>\n\n`;
+  
+  if (user.channelId) {
+    message += `✅ Канал підключено\n`;
+    if (user.channel_title) {
+      message += `📝 Назва: ${user.channel_title}\n`;
+    }
+    message += `🆔 ID: <code>${user.channelId}</code>\n\n`;
+    message += `Оберіть дію:`;
+  } else {
+    message += `❌ Канал не підключено\n\n`;
+    message += `Ви можете підключити канал для автоматичної публікації графіків.`;
+  }
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getChannelSettingsKeyboard(user),
+  });
+}
+
+/**
+ * Handle settings alerts button
+ */
+async function handleSettingsAlerts(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user) {
+    await ctx.answerCallbackQuery({ text: '❌ Користувача не знайдено', show_alert: true });
+    return;
+  }
+  
+  const alertsEnabled = user.alertsEnabled !== false;
+  
+  const message = `🔔 <b>Сповіщення про відключення</b>
+
+Статус: ${alertsEnabled ? '✅ Увімкнено' : '❌ Вимкнено'}
+
+Коли увімкнено, ви отримуватимете сповіщення про заплановані відключення.`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getAlertToggleKeyboard(alertsEnabled),
+  });
+}
+
+/**
+ * Handle alert toggle
+ */
+async function handleAlertToggle(ctx) {
+  await safeAnswerCallback(ctx, '🔄 Оновлюємо...');
+  
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user) {
+    await ctx.answerCallbackQuery({ text: '❌ Користувача не знайдено', show_alert: true });
+    return;
+  }
+  
+  const newStatus = !(user.alertsEnabled !== false);
+  
+  await updateUser(chatId, {
+    alertsEnabled: newStatus,
+  });
+  
+  const message = `🔔 <b>Сповіщення про відключення</b>
+
+Статус: ${newStatus ? '✅ Увімкнено' : '❌ Вимкнено'}
+
+Коли увімкнено, ви отримуватимете сповіщення про заплановані відключення.`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getAlertToggleKeyboard(newStatus),
+  });
+}
+
+/**
+ * Handle settings IP monitoring button
+ */
+async function handleSettingsIp(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const message = `🌐 <b>IP-моніторинг</b>
+
+⚠️ Функція в розробці.
+
+IP-моніторинг дозволить відстежувати доступність вашого роутера та отримувати сповіщення про зміни статусу мережі.`;
+  
+  const { getBackSettingsKeyboard } = require('../keyboards/inline');
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+    reply_markup: getBackSettingsKeyboard(),
+  });
+}
+
+/**
+ * Handle notification target selection
+ */
+async function handleNotifyTargetBot(ctx) {
+  await handleNotifyTargetChange(ctx, 'bot');
+}
+
+async function handleNotifyTargetChannel(ctx) {
+  await handleNotifyTargetChange(ctx, 'channel');
+}
+
+async function handleNotifyTargetBoth(ctx) {
+  await handleNotifyTargetChange(ctx, 'both');
+}
+
+async function handleNotifyTargetChange(ctx, target) {
+  await safeAnswerCallback(ctx, '🔄 Оновлюємо...');
+  
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user) {
+    await ctx.answerCallbackQuery({ text: '❌ Користувача не знайдено', show_alert: true });
+    return;
+  }
+  
+  await updateUser(chatId, {
+    notifyTarget: target,
+  });
+  
+  const targetNames = {
+    bot: '💬 Бот',
+    channel: '📺 Канал',
+    both: '📱 Обидва',
+  };
+  
+  const message = `✅ Налаштування оновлено!\n\nСповіщення тепер надходитимуть: <b>${targetNames[target]}</b>`;
+  
+  await ctx.answerCallbackQuery({ text: message });
+  
+  await safeEditMessage(ctx, `🔔 <b>Куди надсилати сповіщення</b>\n\n${message}`, {
+    parse_mode: 'HTML',
+    reply_markup: getNotifyTargetKeyboard(target),
+  });
+}
+
+/**
+ * Handle delete data confirmation (step 1)
+ */
+async function handleConfirmDeleteData(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const message = `⚠️ <b>УВАГА!</b>
 
 Ви впевнені, що хочете видалити всі свої дані?
 
-Це видалить:
+Буде видалено:
 • Налаштування регіону та черги
 • Підключені канали
-• IP моніторинг
-• Всю статистику
+• Історію та статистику
 
-<b>Цю дію не можна скасувати!</b>`;
+<b>Цю дію неможливо скасувати!</b>
+
+Якщо ви впевнені, натисніть кнопку нижче:`;
   
-  return await ctx.cleanAndEdit(text, {
+  await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
-    reply_markup: deleteDataConfirmKeyboard(),
+    reply_markup: getDeleteDataFinalKeyboard(),
   });
 }
 
-export async function handleDeleteDataStep2(ctx) {
-  await ctx.answerCallbackQuery();
+/**
+ * Handle delete data confirmation (step 2)
+ */
+async function handleDeleteDataStep2(ctx) {
+  await safeAnswerCallback(ctx);
   
-  const text = `🚨 <b>ОСТАННЯ ПОПЕРЕДЖЕННЯ</b>
+  const message = `🗑 <b>ОСТАТОЧНЕ ПІДТВЕРДЖЕННЯ</b>
 
-Ви дійсно хочете видалити ВСІ свої дані?
+Це ваш останній шанс відмінити операцію!
 
-Після видалення вам доведеться:
-• Заново пройти налаштування
-• Підключити канал (якщо потрібно)
-• Налаштувати IP моніторинг (якщо потрібно)
+Після видалення всі ваші дані будуть втрачені назавжди.
 
-<b>Це остаточне видалення!</b>`;
+Підтвердити видалення?`;
   
-  return await ctx.cleanAndEdit(text, {
+  const { InlineKeyboard } = require('grammy');
+  const keyboard = new InlineKeyboard()
+    .text('❌❌ ТАК, ВИДАЛИТИ ❌❌', 'confirm_deactivate').row()
+    .text('← Назад', 'back_to_settings');
+  
+  await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
-    reply_markup: deleteDataFinalKeyboard(),
+    reply_markup: keyboard,
   });
 }
 
-export async function handleConfirmDeactivate(ctx) {
-  const userId = ctx.from.id;
+/**
+ * Handle final deactivation confirmation
+ */
+async function handleConfirmDeactivate(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
   
   // Delete all user data
-  await delUserData(userId);
+  await deleteUser(chatId);
+  await clearState('wizard', chatId);
+  await clearState('conversation', chatId);
+  await clearState('pending_channel', chatId);
   
-  await ctx.answerCallbackQuery({
-    text: '✅ Всі дані видалено',
-  });
-  
-  const text = `✅ Ваші дані успішно видалено.
+  const message = `✅ <b>Дані видалено</b>
 
-Натисніть /start, щоб почати заново.`;
-  
-  return await ctx.cleanAndEdit(text, {
-    reply_markup: null,
-  });
-}
+Всі ваші дані успішно видалено з системи.
 
-export async function handleBackToSettings(ctx) {
-  await ctx.answerCallbackQuery();
-  return await handleSettings(ctx);
-}
-
-export async function handleBackToMain(ctx) {
-  await ctx.answerCallbackQuery();
-  return await showMainMenu(ctx);
-}
-
-// Handle region change from settings
-export async function handleRegionChangeFromSettings(ctx) {
-  const userId = ctx.from.id;
-  const regionCode = ctx.callbackQuery.data.replace('region_', '');
-  const regionName = REGION_CODE_TO_NAME[regionCode] || regionCode;
+Якщо захочете користуватися ботом знову, просто відправте /start`;
   
-  const userData = await getUserData(userId);
-  userData.region = regionName;
-  await setUserData(userId, userData);
-  ctx.userData = userData;
-  
-  await ctx.answerCallbackQuery({
-    text: `📍 Регіон змінено на ${regionName}`,
-  });
-  
-  // Після вибору регіону → показати вибір черги
-  await setWizardState(userId, { step: 2, mode: 'settings', region: regionName });
-  
-  const text = `🔢 Оберіть нову чергу:`;
-  
-  return await ctx.cleanAndEdit(text, {
-    reply_markup: queueKeyboard(),
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
   });
 }
 
-// Handle queue change from settings
-export async function handleQueueChangeFromSettings(ctx) {
-  const userId = ctx.from.id;
-  const queue = ctx.callbackQuery.data.replace('queue_', '');
-  
-  const userData = await getUserData(userId);
-  userData.queue = queue;
-  await setUserData(userId, userData);
-  ctx.userData = userData;
-  
-  await ctx.answerCallbackQuery({
-    text: `🔢 Черга змінена на ${queue}`,
-  });
-  
-  return await showMainMenu(ctx);
+/**
+ * Handle back to settings button
+ */
+async function handleBackToSettings(ctx) {
+  await handleSettings(ctx);
 }
 
-// Legacy handlers for backward compatibility
-export const handleChangeRegion = handleSettingsRegion;
-export const handleToggleNotifications = handleAlertToggle;
-export const handleChannelSettings = handleSettingsChannel;
-export const handleBack = handleBackToMain;
+/**
+ * Handle back to main menu button
+ */
+async function handleBackToMain(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user || !user.region || !user.queue) {
+    await ctx.editMessageText('⚠️ Спочатку налаштуйте регіон та чергу через /start', {
+      parse_mode: 'HTML',
+    });
+    return;
+  }
+  
+  const { formatMainMenu } = require('../formatter');
+  const { getMainMenu } = require('../keyboards/inline');
+  
+  await safeEditMessage(ctx, formatMainMenu(user), {
+    parse_mode: 'HTML',
+    reply_markup: getMainMenu(user),
+  });
+}
+
+module.exports = {
+  handleSettings,
+  handleSettingsRegion,
+  handleSettingsChannel,
+  handleSettingsAlerts,
+  handleSettingsIp,
+  handleAlertToggle,
+  handleNotifyTargetBot,
+  handleNotifyTargetChannel,
+  handleNotifyTargetBoth,
+  handleConfirmDeleteData,
+  handleDeleteDataStep2,
+  handleConfirmDeactivate,
+  handleBackToSettings,
+  handleBackToMain,
+  handleRegionChangeFromSettings,
+  handleQueueChangeFromSettings,
+};

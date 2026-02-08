@@ -1,542 +1,181 @@
-import { 
-  getUserData, 
-  setUserData, 
-  getChannelSetupState, 
-  setChannelSetupState, 
-  delChannelSetupState,
-  getAllUserIds,
-} from '../storage/index.js';
-import {
-  applyChannelBranding,
-  verifyChannelPermissions,
-  isChannelOccupied,
-  sendChannelWelcomeMessage,
-} from '../services/channel.js';
-import { 
-  channelSetupDescriptionKeyboard,
-  backMenuKeyboard,
-} from '../keyboards/inline.js';
-import { showMainMenu } from './menu.js';
+const { getUser, updateUser, getChannel, deleteChannel } = require('../database/redis');
+const { setState, getState, clearState } = require('../state/stateManager');
+const { getChannelSettingsKeyboard } = require('../keyboards/inline');
+const { safeAnswerCallback, safeEditMessage } = require('../utils/errorHandler');
 
 /**
- * Start channel setup wizard
+ * Handle /channel command
  */
-export async function handleChannelSetup(ctx) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
-
-  // Check if user has completed the initial wizard
-  if (!userData.wizardCompleted) {
-    await ctx.answerCallbackQuery({
-      text: '⚠️ Спочатку завершіть початкове налаштування',
-      show_alert: true,
-    });
+async function handleChannelCommand(ctx) {
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user) {
+    await ctx.reply('⚠️ Спочатку налаштуйтеся через /start', { parse_mode: 'HTML' });
     return;
   }
-
-  // Check if user has region and queue
-  if (!userData.region || !userData.queue) {
-    await ctx.answerCallbackQuery({
-      text: '⚠️ Спочатку налаштуйте регіон та чергу',
-      show_alert: true,
-    });
-    return;
+  
+  let message = `📺 <b>Керування каналом</b>\n\n`;
+  
+  if (user.channelId) {
+    message += `✅ Канал підключено\n`;
+    if (user.channel_title) {
+      message += `📝 Назва: ${user.channel_title}\n`;
+    }
+    message += `🆔 ID: <code>${user.channelId}</code>\n\n`;
+    message += `Оберіть дію:`;
+  } else {
+    message += `❌ Канал не підключено\n\n`;
+    message += `Ви можете підключити канал для автоматичної публікації графіків.`;
   }
+  
+  await ctx.reply(message, {
+    parse_mode: 'HTML',
+    reply_markup: getChannelSettingsKeyboard(user),
+  });
+}
 
-  // Check if channel is currently blocked
-  if (userData.channel_status === 'blocked') {
-    const text = `⚠️ <b>Попередження</b>
-
-Ваш канал було заблоковано через порушення правил використання (зміна назви/опису/фото).
-
-Ви можете підключити його заново, але дотримуйтесь правил:
-❌ Не змінюйте назву каналу
-❌ Не змінюйте опис каналу  
-❌ Не змінюйте фото каналу
-
-Продовжити налаштування?`;
-
-    await ctx.cleanAndEdit(text, {
-      parse_mode: 'HTML',
-      reply_markup: backMenuKeyboard(),
-    });
-    
-    await ctx.answerCallbackQuery();
-    return;
-  }
-
-  // Start channel setup
-  await setChannelSetupState(userId, { step: 'waiting_channel' });
-
-  const text = `📺 <b>Підключення каналу</b>
+/**
+ * Handle channel setup button
+ */
+async function handleChannelSetup(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  
+  // Set channel setup state
+  await setState('pending_channel', chatId, {
+    fromWizard: false,
+  });
+  
+  const message = `📺 <b>Підключення каналу</b>
 
 Щоб підключити канал:
 
-1. Додайте бота до вашого каналу як адміністратора
-2. Надайте боту права:
-   • Публікувати повідомлення
-   • Змінювати інформацію про канал
-3. Надішліть @username вашого каналу або перешліть будь-яке повідомлення з каналу
+1. Додайте бота <b>@${ctx.me.username}</b> до вашого каналу як адміністратора
+2. Надайте боту права на публікацію повідомлень
+3. Канал буде виявлено автоматично
 
-<i>Приклад: @my_channel</i>`;
+⚠️ Важливо: бот повинен мати права адміністратора!
 
-  if (ctx.callbackQuery) {
-    await ctx.cleanAndEdit(text, {
-      parse_mode: 'HTML',
-      reply_markup: backMenuKeyboard(),
-    });
-    await ctx.answerCallbackQuery();
+Після додавання бота до каналу, він буде виявлено протягом кількох секунд.`;
+  
+  await safeEditMessage(ctx, message, {
+    parse_mode: 'HTML',
+  });
+}
+
+/**
+ * Handle channel info button
+ */
+async function handleChannelInfo(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user || !user.channelId) {
+    await ctx.answerCallbackQuery({ text: '❌ Канал не підключено', show_alert: true });
+    return;
+  }
+  
+  const channel = await getChannel(user.channelId);
+  
+  let message = `📺 <b>Інформація про канал</b>\n\n`;
+  
+  if (channel) {
+    message += `📝 Назва: ${channel.title || 'Не вказано'}\n`;
+    message += `🆔 ID: <code>${channel.channelId}</code>\n`;
+    if (channel.username) {
+      message += `🔗 Username: @${channel.username}\n`;
+    }
+    message += `⚡️ Регіон: ${channel.region || 'не вказано'}\n`;
+    message += `🔢 Черга: ${channel.queue || 'не вказано'}\n`;
+    message += `📊 Статус: ${channel.status === 'active' ? '✅ Активний' : '❌ Неактивний'}\n`;
   } else {
-    await ctx.cleanAndSend(text, {
-      parse_mode: 'HTML',
-      reply_markup: backMenuKeyboard(),
-    });
+    message += `❌ Інформація про канал недоступна`;
   }
-}
-
-/**
- * Handle channel input (username or forwarded message)
- */
-export async function handleChannelInput(ctx, bot) {
-  const userId = ctx.from.id;
-  const setupState = await getChannelSetupState(userId);
-
-  if (!setupState || setupState.step !== 'waiting_channel') {
-    return false; // Not in channel setup
-  }
-
-  let channelId = null;
-  let channelUsername = null;
-
-  // Check if message is forwarded from a channel
-  if (ctx.message.forward_origin?.type === 'channel') {
-    channelId = ctx.message.forward_origin.chat.id;
-    channelUsername = ctx.message.forward_origin.chat.username;
-  } 
-  // Check if message contains channel username
-  else if (ctx.message.text) {
-    const text = ctx.message.text.trim();
-    
-    // Extract username (with or without @)
-    const match = text.match(/^@?([a-zA-Z0-9_]{5,})$/);
-    if (match) {
-      channelUsername = match[1];
-      
-      // Try to get channel info
-      try {
-        const chat = await bot.api.getChat(`@${channelUsername}`);
-        if (chat.type === 'channel') {
-          channelId = chat.id;
-        } else {
-          await ctx.reply('❌ Це не канал. Надішліть @username каналу.', {
-            parse_mode: 'HTML',
-          });
-          return true;
-        }
-      } catch (error) {
-        await ctx.reply('❌ Канал не знайдено. Перевірте правильність @username.', {
-          parse_mode: 'HTML',
-        });
-        return true;
-      }
-    } else {
-      await ctx.reply('❌ Невірний формат. Надішліть @username каналу або перешліть повідомлення з каналу.', {
-        parse_mode: 'HTML',
-      });
-      return true;
-    }
-  }
-
-  if (!channelId) {
-    await ctx.reply('❌ Не вдалося отримати інформацію про канал.', {
-      parse_mode: 'HTML',
-    });
-    return true;
-  }
-
-  // Verify bot permissions
-  const permCheck = await verifyChannelPermissions(bot, channelId);
-  if (!permCheck.valid) {
-    await ctx.reply(`❌ ${permCheck.error}
-
-Переконайтеся, що:
-• Бот доданий до каналу як адміністратор
-• Бот має права на публікацію повідомлень
-• Бот має права на зміну інформації про канал`, {
-      parse_mode: 'HTML',
-    });
-    return true;
-  }
-
-  // Check if channel is occupied by another user
-  const allUserIds = await getAllUserIds();
-  const occupiedCheck = await isChannelOccupied(channelId, userId, allUserIds, getUserData);
   
-  if (occupiedCheck.occupied) {
-    await ctx.reply('❌ Цей канал вже підключено до іншого користувача.', {
-      parse_mode: 'HTML',
-    });
-    return true;
-  }
-
-  // Store channel info and move to next step
-  await setChannelSetupState(userId, {
-    step: 'waiting_channel_name',
-    channelId: channelId.toString(),
-    channelUsername: channelUsername || null,
-  });
-
-  const text = `✅ Канал підтверджено!
-
-📝 <b>Введіть назву для каналу</b>
-
-Ви вводите тільки вашу частину, префікс "Вольтик ⚡️ " додасться автоматично.
-
-<i>Приклад: якщо ви введете "Київ Черга 3.1", 
-назва каналу стане "Вольтик ⚡️ Київ Черга 3.1"</i>`;
-
-  await ctx.reply(text, {
+  const { getBackMenuKeyboard } = require('../keyboards/inline');
+  
+  await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
+    reply_markup: getBackMenuKeyboard(),
   });
-
-  return true;
 }
 
 /**
- * Handle channel name input
+ * Handle channel disconnect button
  */
-export async function handleChannelNameInput(ctx) {
-  const userId = ctx.from.id;
-  const setupState = await getChannelSetupState(userId);
-
-  if (!setupState || setupState.step !== 'waiting_channel_name') {
-    return false;
-  }
-
-  const userTitle = ctx.message.text.trim();
-
-  if (!userTitle || userTitle.length < 1) {
-    await ctx.reply('❌ Назва не може бути порожньою. Спробуйте ще раз.', {
-      parse_mode: 'HTML',
-    });
-    return true;
-  }
-
-  if (userTitle.length > 200) {
-    await ctx.reply('❌ Назва занадто довга (максимум 200 символів). Спробуйте ще раз.', {
-      parse_mode: 'HTML',
-    });
-    return true;
-  }
-
-  // Update state
-  setupState.step = 'waiting_description_choice';
-  setupState.userTitle = userTitle;
-  await setChannelSetupState(userId, setupState);
-
-  const text = `✅ Назва збережена!
-
-Повна назва каналу: <b>Вольтик ⚡️ ${userTitle}</b>
-
-📝 <b>Бажаєте додати опис каналу?</b>
-
-Опис буде показаний під назвою каналу.
-Обов'язкова частина з інформацією про Вольтик додасться автоматично.`;
-
-  await ctx.reply(text, {
-    parse_mode: 'HTML',
-    reply_markup: channelSetupDescriptionKeyboard(),
-  });
-
-  return true;
-}
-
-/**
- * Handle "add description" button
- */
-export async function handleChannelAddDescription(ctx) {
-  const userId = ctx.from.id;
-  const setupState = await getChannelSetupState(userId);
-
-  if (!setupState || setupState.step !== 'waiting_description_choice') {
-    await ctx.answerCallbackQuery({
-      text: '⚠️ Сесія завершилася. Почніть заново.',
-    });
+async function handleChannelDisconnect(ctx) {
+  await safeAnswerCallback(ctx);
+  
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user || !user.channelId) {
+    await ctx.answerCallbackQuery({ text: '❌ Канал не підключено', show_alert: true });
     return;
   }
+  
+  const { InlineKeyboard } = require('grammy');
+  const keyboard = new InlineKeyboard()
+    .text('⚠️ Так, від\'єднати', 'confirm_channel_disconnect').row()
+    .text('← Назад', 'settings_channel');
+  
+  const message = `⚠️ <b>Від'єднання каналу</b>
 
-  setupState.step = 'waiting_channel_description';
-  await setChannelSetupState(userId, setupState);
+Ви впевнені, що хочете від'єднати канал?
 
-  const text = `📝 <b>Введіть опис каналу</b>
-
-Ваш опис буде показаний на початку.
-В кінці автоматично додасться інформація про Вольтик.
-
-<i>Приклад: "ЖК Сонячний, під'їзд 2"</i>`;
-
-  await ctx.cleanAndEdit(text, {
+Після від'єднання публікації в канал припиняться.`;
+  
+  await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
+    reply_markup: keyboard,
   });
-
-  await ctx.answerCallbackQuery();
 }
 
 /**
- * Handle "skip description" button
+ * Handle confirm channel disconnect
  */
-export async function handleChannelSkipDescription(ctx, bot) {
-  const userId = ctx.from.id;
-  const setupState = await getChannelSetupState(userId);
-
-  if (!setupState || setupState.step !== 'waiting_description_choice') {
-    await ctx.answerCallbackQuery({
-      text: '⚠️ Сесія завершилася. Почніть заново.',
-    });
+async function handleConfirmChannelDisconnect(ctx) {
+  await safeAnswerCallback(ctx, '🔄 Від\'єднуємо канал...');
+  
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user || !user.channelId) {
+    await ctx.answerCallbackQuery({ text: '❌ Канал не підключено', show_alert: true });
     return;
   }
-
-  await ctx.answerCallbackQuery({
-    text: '⏳ Застосовуємо налаштування...',
-  });
-
-  // Apply branding without user description
-  await finishChannelSetup(ctx, bot, setupState, null);
-}
-
-/**
- * Handle channel description input
- */
-export async function handleChannelDescriptionInput(ctx, bot) {
-  const userId = ctx.from.id;
-  const setupState = await getChannelSetupState(userId);
-
-  if (!setupState || setupState.step !== 'waiting_channel_description') {
-    return false;
-  }
-
-  const userDescription = ctx.message.text.trim();
-
-  if (!userDescription || userDescription.length < 1) {
-    await ctx.reply('❌ Опис не може бути порожнім. Спробуйте ще раз або поверніться та пропустіть цей крок.', {
-      parse_mode: 'HTML',
-    });
-    return true;
-  }
-
-  if (userDescription.length > 200) {
-    await ctx.reply('❌ Опис занадто довгий (максимум 200 символів). Спробуйте ще раз.', {
-      parse_mode: 'HTML',
-    });
-    return true;
-  }
-
-  // Finish setup with user description
-  await finishChannelSetup(ctx, bot, setupState, userDescription);
-  return true;
-}
-
-/**
- * Finish channel setup - apply branding and save
- */
-async function finishChannelSetup(ctx, bot, setupState, userDescription) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
-
-  const statusMessage = await ctx.reply('⏳ Застосовуємо налаштування...', {
-    parse_mode: 'HTML',
-  });
-
-  try {
-    // Apply branding
-    const results = await applyChannelBranding(
-      bot,
-      setupState.channelId,
-      setupState.userTitle,
-      userDescription
-    );
-
-    // Check critical operations (title and description)
-    if (!results.title.success) {
-      await bot.api.editMessageText(
-        userId,
-        statusMessage.message_id,
-        `❌ Не вдалося встановити назву каналу: ${results.title.error}
-
-Перевірте права бота та спробуйте ще раз.`,
-        { parse_mode: 'HTML' }
-      );
-      await delChannelSetupState(userId);
-      return;
-    }
-
-    if (!results.description.success) {
-      await bot.api.editMessageText(
-        userId,
-        statusMessage.message_id,
-        `❌ Не вдалося встановити опис каналу: ${results.description.error}
-
-Перевірте права бота та спробуйте ще раз.`,
-        { parse_mode: 'HTML' }
-      );
-      await delChannelSetupState(userId);
-      return;
-    }
-
-    // Photo is non-critical
-    const photoWarning = !results.photo.success 
-      ? `\n\n⚠️ Фото каналу не встановлено: ${results.photo.error}`
-      : '';
-
-    // Save to storage
-    const fullTitle = 'Вольтик ⚡️ ' + setupState.userTitle;
-    const botUsername = bot.botInfo.username;
-    const botLink = `🤖 @${botUsername}`;
-    const fullDescription = userDescription 
-      ? `${userDescription}\n\n⚡️ Вольтик — слідкує, щоб ти не слідкував\n${botLink}`
-      : `⚡️ Вольтик — слідкує, щоб ти не слідкував\n${botLink}`;
-
-    userData.channel_id = setupState.channelId;
-    userData.channel_title = fullTitle;
-    userData.channel_description = fullDescription;
-    userData.channel_photo_file_id = results.photo.fileId;
-    userData.channel_user_title = setupState.userTitle;
-    userData.channel_user_description = userDescription;
-    userData.channel_status = 'active';
-    userData.channel_branding_updated_at = Date.now();
-    
-    // Also update old fields for backward compatibility
-    userData.channelId = setupState.channelId;
-    userData.channelName = setupState.channelUsername;
-    
-    await setUserData(userId, userData);
-
-    // Send welcome message to channel
-    await sendChannelWelcomeMessage(
-      bot,
-      setupState.channelId,
-      userData.queue,
-      !!userData.ipAddress
-    );
-
-    // Delete setup state
-    await delChannelSetupState(userId);
-
-    // Success message
-    const channelLink = setupState.channelUsername 
-      ? `@${setupState.channelUsername}`
-      : 'ваш канал';
-
-    const successText = `✅ <b>Канал успішно налаштовано!</b>
-
-📺 Канал: ${channelLink}
-📝 Назва: ${fullTitle}
-
-⚠️ <b>УВАГА: Не змінюйте назву, опис або фото каналу!</b>
-Якщо ви їх зміните — бот перестане працювати і
-потрібно буде налаштовувати канал заново.${photoWarning}`;
-
-    await bot.api.editMessageText(
-      userId,
-      statusMessage.message_id,
-      successText,
-      { parse_mode: 'HTML' }
-    );
-
-    // Show main menu after a delay
-    setTimeout(async () => {
-      await showMainMenu(ctx);
-    }, 2000);
-
-  } catch (error) {
-    console.error('Error finishing channel setup:', error);
-    await bot.api.editMessageText(
-      userId,
-      statusMessage.message_id,
-      `❌ Помилка при налаштуванні каналу: ${error.message}`,
-      { parse_mode: 'HTML' }
-    );
-    await delChannelSetupState(userId);
-  }
-}
-
-/**
- * Handle /cancel command during channel setup
- */
-export async function handleChannelSetupCancel(ctx) {
-  const userId = ctx.from.id;
-  const setupState = await getChannelSetupState(userId);
-
-  if (!setupState) {
-    return false; // Not in channel setup
-  }
-
-  await delChannelSetupState(userId);
   
-  await ctx.reply('❌ Налаштування каналу скасовано.', {
-    parse_mode: 'HTML',
+  const channelId = user.channelId;
+  
+  // Delete channel from database
+  await deleteChannel(channelId);
+  
+  // Update user
+  await updateUser(chatId, {
+    channelId: null,
+    notifyTarget: 'bot',
   });
   
-  await showMainMenu(ctx);
-  return true;
-}
+  const message = `✅ <b>Канал від'єднано</b>
 
-/**
- * Show channel info/settings
- */
-export async function handleChannelInfo(ctx) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
-
-  if (!userData.channel_id || userData.channel_status !== 'active') {
-    await ctx.answerCallbackQuery({
-      text: '📺 У вас немає підключеного каналу',
-    });
-    return await handleChannelSetup(ctx);
-  }
-
-  const channelLink = userData.channelName ? `@${userData.channelName}` : userData.channel_id;
+Канал успішно від'єднано. Сповіщення тепер надходитимуть в бот.`;
   
-  const text = `📺 <b>Інформація про канал</b>
-
-Канал: ${channelLink}
-Назва: ${userData.channel_title}
-Статус: ✅ Активний
-
-<i>Графіки публікуються автоматично при змінах</i>`;
-
-  await ctx.cleanAndEdit(text, {
+  const { getMenuKeyboard } = require('../keyboards/inline');
+  
+  await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
-    reply_markup: backMenuKeyboard(),
+    reply_markup: getMenuKeyboard(),
   });
-
-  await ctx.answerCallbackQuery();
 }
 
-/**
- * Disconnect channel
- */
-export async function handleChannelDisconnect(ctx) {
-  const userId = ctx.from.id;
-  const userData = await getUserData(userId);
-
-  // Reset all channel fields
-  userData.channel_id = null;
-  userData.channel_title = null;
-  userData.channel_description = null;
-  userData.channel_photo_file_id = null;
-  userData.channel_user_title = null;
-  userData.channel_user_description = null;
-  userData.channel_status = null;
-  userData.channel_branding_updated_at = null;
-  userData.channelId = null;
-  userData.channelName = null;
-
-  await setUserData(userId, userData);
-
-  await ctx.answerCallbackQuery({
-    text: '✅ Канал відключено',
-  });
-
-  await showMainMenu(ctx);
-}
+module.exports = {
+  handleChannelCommand,
+  handleChannelSetup,
+  handleChannelInfo,
+  handleChannelDisconnect,
+  handleConfirmChannelDisconnect,
+};

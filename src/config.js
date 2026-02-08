@@ -1,38 +1,35 @@
-import 'dotenv/config';
+require('dotenv').config();
 
-export const config = {
+const config = {
   botToken: process.env.BOT_TOKEN,
-  redisUrl: process.env.REDIS_URL,
-  adminChatId: process.env.ADMIN_CHAT_ID,
   ownerId: process.env.OWNER_ID,
   adminIds: (process.env.ADMIN_IDS || '').split(',').filter(Boolean),
-  webhookDomain: process.env.WEBHOOK_DOMAIN,
-  port: process.env.PORT || 3000,
   botMode: process.env.BOT_MODE || 'webhook',
-  
-  // Bot settings
-  supportChatUrl: 'https://t.me/voltyk_chat',
-  
-  // Regions (fixed names)
-  regions: [
-    'Київ',
-    'Київщина',
-    'Одещина',
-    'Дніпропетровщина'
-  ],
-  
-  // Region slugs mapping for outage-data-ua repository
-  regionSlugs: {
-    'Київ': 'kyiv',
-    'Київщина': 'kyiv-region',
-    'Одещина': 'odesa',
-    'Дніпропетровщина': 'dnipro',
-  },
-  
-  // Queues
-  queues: ['1.1', '1.2', '2.1', '2.2', '3.1', '3.2', '4.1', '4.2', '5.1', '5.2', '6.1', '6.2'],
-  
-  // Rate limiting
-  rateLimitWindow: 1000, // 1 second
-  rateLimitMax: 3, // 3 actions per window
+  webhookUrl: process.env.WEBHOOK_URL || '',
+  webhookPort: parseInt(process.env.WEBHOOK_PORT || '3000', 10),
+  webhookSecret: process.env.WEBHOOK_SECRET || '',
+  redisHost: process.env.REDIS_HOST || 'localhost',
+  redisPort: parseInt(process.env.REDIS_PORT || '6379', 10),
+  redisPassword: process.env.REDIS_PASSWORD || undefined,
+  redisDb: parseInt(process.env.REDIS_DB || '0', 10),
+  timezone: process.env.TZ || 'Europe/Kyiv',
 };
+
+// Dynamic settings with Redis fallback
+async function getIntervalSetting(dbKey, envKey, defaultValue) {
+  try {
+    const { getSetting } = require('./database/redis');
+    const value = await getSetting(dbKey);
+    if (value !== null) return parseInt(value, 10);
+  } catch (error) {
+    // Redis not available, use env/default
+  }
+  return parseInt(process.env[envKey] || String(defaultValue), 10);
+}
+
+function isAdmin(telegramId) {
+  const id = String(telegramId);
+  return config.adminIds.includes(id) || id === String(config.ownerId);
+}
+
+module.exports = { config, getIntervalSetting, isAdmin };
