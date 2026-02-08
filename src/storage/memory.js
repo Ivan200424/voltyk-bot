@@ -1,5 +1,101 @@
-// In-memory storage fallback
+// File-based persistent storage fallback
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Storage file path
+const STORAGE_DIR = path.resolve(__dirname, '../../data');
+const STORAGE_FILE = path.join(STORAGE_DIR, 'storage.json');
+const WRITE_DEBOUNCE_MS = 300; // Debounce writes to reduce I/O
+
+// In-memory Map for fast reads
 const storage = new Map();
+
+// Debounce variables
+let writeTimeout = null;
+let isDirty = false;
+
+/**
+ * Load data from disk on initialization
+ */
+function loadFromDisk() {
+  try {
+    // Check if file exists
+    if (!fs.existsSync(STORAGE_FILE)) {
+      console.log('📁 Storage: No existing file found, starting fresh');
+      return;
+    }
+
+    // Read and parse file
+    const fileContent = fs.readFileSync(STORAGE_FILE, 'utf8');
+    const data = JSON.parse(fileContent);
+
+    // Load data into Map, filtering out expired items
+    const now = Date.now();
+    let loadedCount = 0;
+    let expiredCount = 0;
+
+    for (const [key, item] of Object.entries(data)) {
+      // Check if item has expired
+      if (item.expiresAt && now >= item.expiresAt) {
+        expiredCount++;
+        continue;
+      }
+      storage.set(key, item);
+      loadedCount++;
+    }
+
+    console.log(`📁 Storage: Loaded ${loadedCount} items from disk${expiredCount > 0 ? ` (${expiredCount} expired items discarded)` : ''}`);
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      console.error('📁 Storage: Corrupted JSON file, starting fresh:', error.message);
+    } else {
+      console.error('📁 Storage: Error loading from disk:', error.message);
+    }
+    // Start fresh if there's an error
+    storage.clear();
+  }
+}
+
+/**
+ * Save data to disk (debounced)
+ */
+function saveToDisk() {
+  isDirty = true;
+
+  // Clear existing timeout
+  if (writeTimeout) {
+    clearTimeout(writeTimeout);
+  }
+
+  // Schedule write
+  writeTimeout = setTimeout(() => {
+    if (!isDirty) return;
+
+    try {
+      // Ensure directory exists
+      if (!fs.existsSync(STORAGE_DIR)) {
+        fs.mkdirSync(STORAGE_DIR, { recursive: true });
+      }
+
+      // Convert Map to plain object
+      const data = Object.fromEntries(storage);
+
+      // Write to file
+      fs.writeFileSync(STORAGE_FILE, JSON.stringify(data, null, 2), 'utf8');
+      isDirty = false;
+    } catch (error) {
+      console.error('📁 Storage: Error writing to disk:', error.message);
+      // Don't crash on write failure - data is still in memory
+    }
+  }, WRITE_DEBOUNCE_MS);
+}
+
+// Load data on module initialization
+loadFromDisk();
 
 export function getMemory(key) {
   const item = storage.get(key);
@@ -8,6 +104,7 @@ export function getMemory(key) {
   // Check TTL
   if (item.expiresAt && Date.now() >= item.expiresAt) {
     storage.delete(key);
+    saveToDisk(); // Persist deletion of expired item
     return null;
   }
   
@@ -20,13 +117,19 @@ export function setMemory(key, value, ttl = null) {
     expiresAt: ttl ? Date.now() + (ttl * 1000) : null,
   };
   storage.set(key, item);
+  saveToDisk(); // Persist to disk
   return true;
 }
 
 export function delMemory(key) {
-  return storage.delete(key);
+  const result = storage.delete(key);
+  if (result) {
+    saveToDisk(); // Persist deletion
+  }
+  return result;
 }
 
 export function clearMemory() {
   storage.clear();
+  saveToDisk(); // Persist clear operation
 }
