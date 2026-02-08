@@ -4,14 +4,13 @@ const {
   getSettingsKeyboard,
   getRegionChangeKeyboard,
   getQueueChangeKeyboard,
-  getQueueChangeKeyboardExtra,
   getChannelSettingsKeyboard,
   getNotifyTargetKeyboard,
   getAlertToggleKeyboard,
   getDeleteDataConfirmKeyboard,
   getDeleteDataFinalKeyboard,
 } = require('../keyboards/inline');
-const { REGIONS, KYIV_EXTRA_QUEUE_START, KYIV_EXTRA_QUEUE_END } = require('../constants/regions');
+const { REGIONS, QUEUES, KYIV_EXTRA_QUEUES } = require('../constants/regions');
 const { isAdmin } = require('../utils');
 const { safeAnswerCallback, safeEditMessage } = require('../utils/errorHandler');
 
@@ -112,10 +111,18 @@ async function handleRegionChangeFromSettings(ctx) {
   const message = `✅ Регіон обрано: <b>${REGIONS[region].name}</b>
 
 Тепер оберіть чергу:`;
+
+  // Determine which queues to show based on region
+  let allQueues;
+  if (region === 'kyiv') {
+    allQueues = [...QUEUES, ...KYIV_EXTRA_QUEUES];
+  } else {
+    allQueues = QUEUES;
+  }
   
   await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
-    reply_markup: getQueueChangeKeyboard(region),
+    reply_markup: getQueueChangeKeyboard(1, allQueues, region),
   });
 }
 
@@ -422,44 +429,37 @@ async function handleBackToMain(ctx) {
 }
 
 /**
- * Handle queue change page navigation - extra queues (settings)
+ * Handle queue change page navigation (settings)
  */
-async function handleQueueChangePageExtra(ctx) {
+async function handleQueueChangePage(ctx) {
   await safeAnswerCallback(ctx);
   
   const chatId = ctx.from.id;
   const conversation = await getState('conversation', chatId);
   const region = conversation?.region;
   
-  // Only Kyiv region has extra queues
-  if (region !== 'kyiv') {
-    await ctx.answerCallbackQuery({ text: '❌ Додаткові черги доступні тільки для регіону Київ', show_alert: true });
-    return await handleQueueChangePageMain(ctx);
+  if (!region) {
+    await ctx.answerCallbackQuery({ text: '❌ Помилка: невірний стан', show_alert: true });
+    return;
   }
   
-  const message = `Оберіть чергу:\n<i>(Черги ${KYIV_EXTRA_QUEUE_START}–${KYIV_EXTRA_QUEUE_END})</i>`;
+  // Determine which queues to show based on region
+  let allQueues;
+  if (region === 'kyiv') {
+    allQueues = [...QUEUES, ...KYIV_EXTRA_QUEUES];
+  } else {
+    allQueues = QUEUES;
+  }
   
-  await safeEditMessage(ctx, message, {
-    parse_mode: 'HTML',
-    reply_markup: getQueueChangeKeyboardExtra(),
-  });
-}
-
-/**
- * Handle queue change page navigation - main queues (settings)
- */
-async function handleQueueChangePageMain(ctx) {
-  await safeAnswerCallback(ctx);
-  
-  const chatId = ctx.from.id;
-  const conversation = await getState('conversation', chatId);
-  const region = conversation?.region || 'kyiv';
+  // Parse page number from callback data
+  const callbackData = ctx.callbackQuery.data;
+  const page = callbackData === 'queue_change_page_2' ? 2 : 1;
   
   const message = `✅ Регіон обрано: <b>${REGIONS[region].name}</b>\n\nТепер оберіть чергу:`;
   
   await safeEditMessage(ctx, message, {
     parse_mode: 'HTML',
-    reply_markup: getQueueChangeKeyboard(region),
+    reply_markup: getQueueChangeKeyboard(page, allQueues, region),
   });
 }
 
@@ -480,6 +480,5 @@ module.exports = {
   handleBackToMain,
   handleRegionChangeFromSettings,
   handleQueueChangeFromSettings,
-  handleQueueChangePageExtra,
-  handleQueueChangePageMain,
+  handleQueueChangePage,
 };
