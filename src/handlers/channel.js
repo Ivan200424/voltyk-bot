@@ -3,6 +3,8 @@ const { setState, getState, clearState } = require('../state/stateManager');
 const { getChannelSettingsKeyboard } = require('../keyboards/inline');
 const { safeAnswerCallback, safeEditMessage } = require('../utils/errorHandler');
 const { cleanReply } = require('../utils/chatCleaner');
+const { publishToChannel } = require('../publisher');
+const { REGIONS } = require('../constants/regions');
 
 /**
  * Handle /channel command
@@ -173,10 +175,49 @@ async function handleConfirmChannelDisconnect(ctx) {
   });
 }
 
+/**
+ * Handle test publish button
+ */
+async function handleTestPublish(ctx) {
+  await safeAnswerCallback(ctx, '📤 Публікуємо тест...');
+  
+  const chatId = ctx.from.id;
+  const user = await getUser(chatId);
+  
+  if (!user || !user.channelId) {
+    await ctx.answerCallbackQuery({ text: '❌ Канал не підключено', show_alert: true });
+    return;
+  }
+  
+  if (!user.region || !user.queue) {
+    await ctx.answerCallbackQuery({ text: '❌ Регіон або черга не налаштовані', show_alert: true });
+    return;
+  }
+  
+  const regionName = REGIONS[user.region]?.name || user.region;
+  const testMessage = `🧪 <b>Тестове повідомлення</b>\n\n📍 Регіон: <b>${regionName}</b>\n⚡️ Черга: <b>${user.queue}</b>\n\nЯкщо ви бачите це повідомлення з фото, канал налаштовано правильно!`;
+  
+  // Publish test message
+  const success = await publishToChannel(
+    { api: ctx.api },
+    user.channelId,
+    testMessage,
+    user.region,
+    user.queue
+  );
+  
+  if (success) {
+    await ctx.answerCallbackQuery({ text: '✅ Тест успішно опубліковано!', show_alert: true });
+  } else {
+    await ctx.answerCallbackQuery({ text: '❌ Помилка публікації. Перевірте права бота в каналі.', show_alert: true });
+  }
+}
+
 module.exports = {
   handleChannelCommand,
   handleChannelSetup,
   handleChannelInfo,
   handleChannelDisconnect,
   handleConfirmChannelDisconnect,
+  handleTestPublish,
 };

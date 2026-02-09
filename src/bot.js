@@ -62,6 +62,7 @@ const {
   handleChannelInfo,
   handleChannelDisconnect,
   handleConfirmChannelDisconnect,
+  handleTestPublish,
 } = require('./handlers/channel');
 
 const { getState } = require('./state/stateManager');
@@ -181,6 +182,7 @@ function setupBot(bot) {
   bot.callbackQuery('channel_info', handleChannelInfo);
   bot.callbackQuery('channel_disconnect', handleChannelDisconnect);
   bot.callbackQuery('confirm_channel_disconnect', handleConfirmChannelDisconnect);
+  bot.callbackQuery('test_publish', handleTestPublish);
 
   // Admin panel callbacks
   bot.callbackQuery('admin_panel', handleAdminPanel);
