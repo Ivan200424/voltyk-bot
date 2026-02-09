@@ -275,7 +275,7 @@ async function publishBatch(bot, targetId, messages, targetType = 'bot', region 
   };
   
   // Validate required parameters for channel publishing
-  if (targetType === 'channel' && (!region || !queue)) {
+  if (targetType === 'channel' && (region == null || queue == null)) {
     logger.error('Region and queue are required for channel publishing');
     results.failed = messages.length;
     results.errors.push('Missing region or queue for channel publishing');
@@ -293,7 +293,7 @@ async function publishBatch(bot, targetId, messages, targetType = 'bot', region 
     let success;
     if (targetType === 'channel') {
       success = await publishToChannel(bot, targetId, message.text, region, queue);
-    } else if (targetType === 'bot' && region && queue) {
+    } else if (targetType === 'bot' && region != null && queue != null) {
       // Try with photo first, fall back to text-only if photo fails
       success = await publishToBotWithPhoto(bot, targetId, message.text, region, queue);
       if (!success) {
