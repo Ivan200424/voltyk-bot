@@ -102,6 +102,63 @@ async function publishToBot(bot, chatId, text) {
 }
 
 /**
+ * Publish message to bot (DM) with photo
+ * @param {Object} bot - Grammy bot instance
+ * @param {number} chatId - User chat ID
+ * @param {string} text - Caption text (HTML)
+ * @param {string} region - Region code (e.g., 'kyiv')
+ * @param {string} queue - Queue identifier (e.g., '3.1')
+ * @returns {Promise<boolean>} Success status
+ */
+async function publishToBotWithPhoto(bot, chatId, text, region, queue) {
+  try {
+    // Try to use cached file_id first
+    const cachedFileId = await getCachedPhotoFileId(region, queue);
+    
+    if (cachedFileId) {
+      try {
+        await bot.api.sendPhoto(chatId, cachedFileId, {
+          caption: text,
+          parse_mode: 'HTML',
+        });
+        logger.debug(`Published to bot DM with cached photo: ${chatId}`);
+        return true;
+      } catch (error) {
+        // Cache might be invalid, try fetching
+        logger.warn('Cached photo file_id failed, will try fetching');
+      }
+    }
+    
+    // Fetch queue-specific photo
+    const photoBuffer = await fetchQueuePhoto(region, queue);
+    
+    if (!photoBuffer) {
+      logger.warn(`Failed to fetch queue photo for ${region}/${queue}, will fall back to text-only`);
+      return false;
+    }
+    
+    const inputFile = new InputFile(photoBuffer, 'schedule.png');
+    
+    const result = await bot.api.sendPhoto(chatId, inputFile, {
+      caption: text,
+      parse_mode: 'HTML',
+    });
+    
+    // Cache the file_id for future use
+    if (result && result.photo && result.photo.length > 0) {
+      const fileId = result.photo[result.photo.length - 1].file_id;
+      await cachePhotoFileId(region, queue, fileId);
+    }
+    
+    logger.debug(`Published to bot DM with photo: ${chatId}`);
+    return true;
+  } catch (error) {
+    logger.error(`Failed to publish to bot DM with photo ${chatId}:`, error.message);
+    return false;
+  }
+}
+
+/**
  * Publish message to channel with photo
  * @param {Object} bot - Grammy bot instance
  * @param {number|string} channelId - Channel ID
@@ -236,6 +293,13 @@ async function publishBatch(bot, targetId, messages, targetType = 'bot', region 
     let success;
     if (targetType === 'channel') {
       success = await publishToChannel(bot, targetId, message.text, region, queue);
+    } else if (targetType === 'bot' && region && queue) {
+      // Try with photo first, fall back to text-only if photo fails
+      success = await publishToBotWithPhoto(bot, targetId, message.text, region, queue);
+      if (!success) {
+        logger.warn(`Photo publish failed for bot DM ${targetId}, trying text-only`);
+        success = await publishToBot(bot, targetId, message.text);
+      }
     } else {
       success = await publishToBot(bot, targetId, message.text);
     }
@@ -272,7 +336,7 @@ async function publishToUser(bot, user, messages) {
   
   // Publish to bot DM
   if (notifyTarget === 'bot' || notifyTarget === 'both') {
-    const botResults = await publishBatch(bot, user.chatId, messages, 'bot', null, null, MESSAGE_DELAY_MS);
+    const botResults = await publishBatch(bot, user.chatId, messages, 'bot', user.region, user.queue, MESSAGE_DELAY_MS);
     results.bot = botResults;
     logger.info(`Published ${botResults.success}/${messages.length} messages to user ${user.chatId} (bot)`);
   }
@@ -289,6 +353,7 @@ async function publishToUser(bot, user, messages) {
 
 module.exports = {
   publishToBot,
+  publishToBotWithPhoto,
   publishToChannel,
   publishToChannelWithPhoto,
   publishToChannelWithoutPhoto,
