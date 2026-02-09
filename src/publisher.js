@@ -217,6 +217,14 @@ async function publishBatch(bot, targetId, messages, targetType = 'bot', region 
     errors: [],
   };
   
+  // Validate required parameters for channel publishing
+  if (targetType === 'channel' && (!region || !queue)) {
+    logger.error('Region and queue are required for channel publishing');
+    results.failed = messages.length;
+    results.errors.push('Missing region or queue for channel publishing');
+    return results;
+  }
+  
   for (let i = 0; i < messages.length; i++) {
     const message = messages[i];
     

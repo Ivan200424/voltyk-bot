@@ -197,12 +197,9 @@ async function handleTestPublish(ctx) {
   const regionName = REGIONS[user.region]?.name || user.region;
   const testMessage = `🧪 <b>Тестове повідомлення</b>\n\n📍 Регіон: <b>${regionName}</b>\n⚡️ Черга: <b>${user.queue}</b>\n\nЯкщо ви бачите це повідомлення з фото, канал налаштовано правильно!`;
   
-  // Get bot instance from context
-  const bot = ctx.api;
-  
   // Publish test message
   const success = await publishToChannel(
-    { api: bot },
+    { api: ctx.api },
     user.channelId,
     testMessage,
     user.region,
